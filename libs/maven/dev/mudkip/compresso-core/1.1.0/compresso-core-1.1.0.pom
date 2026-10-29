@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>dev.mudkip</groupId>
+    <artifactId>compresso-core</artifactId>
+    <version>1.1.0</version>
+    <packaging>jar</packaging>
+
+    <name>Compresso Core</name>
+    <description>Shared screenshot compression engine for Compresso and Cake Client.</description>
+    <url>https://modrinth.com/mod/compresso</url>
+
+    <licenses>
+        <license>
+            <name>GPL-3.0-or-later</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0.html</url>
+        </license>
+    </licenses>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.github.usefulness</groupId>
+            <artifactId>webp-imageio</artifactId>
+            <version>0.11.0</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
+</project>

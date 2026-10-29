@@ -1,0 +1,39 @@
+{
+    "schemaVersion": 1,
+    "id": "cake",
+    "version": "${version}",
+    "name": "Cake Client",
+    "description": "A client-side Minecraft mod.",
+    "authors": [
+        "mudkip"
+    ],
+    "contact": {
+        "homepage": "https://modrinth.com/mod/cake-client",
+        "sources": "https://github.com/mudkjp/cake-client",
+        "issues": "https://github.com/mudkjp/cake-client/issues"
+    },
+    "license": "GPL-3.0-or-later",
+    "icon": "assets/cake/icon.png",
+    "environment": "client",
+    "entrypoints": {
+        "client": [
+            "dev.mudkip.cake.CakeClientFabric"
+        ]
+    },
+    "mixins": [
+        {
+            "config": "cake.mixins.json",
+            "environment": "client"
+        }
+    ],
+    "depends": {
+        "java": ">=${jdk_version}",
+        "fabricloader": ">=${loader_version}",
+        "fabric-api": "*",
+        "minecraft": "${minecraft_dependency}",
+        "owo": ">=0.13.1"
+    },
+    "suggests": {
+        "modmenu": "*"
+    }
+}

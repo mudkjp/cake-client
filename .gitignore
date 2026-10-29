@@ -1,0 +1,21 @@
+*.md
+*.py
+
+.gradle/
+build/
+run/
+*.log
+
+# Stonecutter (generated version nodes / caches)
+versions/*/build/
+versions/*/src/
+.stonecutter/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+bin/
+
+# OS
+.DS_Store

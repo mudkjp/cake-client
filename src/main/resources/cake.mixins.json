@@ -1,0 +1,33 @@
+{
+    "required": true,
+    "minVersion": "0.8",
+    "compatibilityLevel": "JAVA_21",
+    "package": "dev.mudkip.cake.mixin",
+    "client": [
+        "CameraMixin",
+        "ClientClockInstanceMixin",
+        "ClientClockManagerMixin",
+        "FingerprintBrandMixin",
+        "FingerprintChannelAddonMixin",
+        "FingerprintConnectionMixin",
+        "FingerprintDownloadQueueMixin",
+        "FingerprintHttpUtilMixin",
+        "FingerprintKeybindMixin",
+        "FingerprintLanguageMixin",
+        "FingerprintPacketDecoderMixin",
+        "FingerprintPayloadRegistryMixin",
+        "FingerprintSerializationMixin",
+        "FingerprintTranslatableMixin",
+        "FontManagerMixin",
+        "LevelRendererMixin",
+        "LightmapRenderStateExtractorMixin",
+        "MinecraftFontMixin",
+        "MouseHandlerMixin",
+        "ScreenshotCompressionMixin",
+        "TelemetryMixin",
+        "TelemetrySessionMixin"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}
