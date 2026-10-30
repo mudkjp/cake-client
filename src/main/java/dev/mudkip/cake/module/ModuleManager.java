@@ -70,6 +70,12 @@ public final class ModuleManager {
         return type.cast(this.modulesByClass.get(type));
     }
 
+    public void refreshAvailability() {
+        for (var module : this.modules) {
+            module.refreshAvailability();
+        }
+    }
+
     public void load() {
         var path = ModuleManager.configPath();
 

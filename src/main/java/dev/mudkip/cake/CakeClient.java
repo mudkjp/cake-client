@@ -3,6 +3,7 @@ package dev.mudkip.cake;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mudkip.cake.module.ModuleManager;
 import dev.mudkip.cake.module.modules.SmoothFontModule;
+import dev.mudkip.cake.server.ServerSession;
 import dev.mudkip.cake.ui.HudEditorScreen;
 import dev.mudkip.cake.ui.HudOverlay;
 import dev.mudkip.cake.ui.ModMenuScreen;
@@ -52,6 +53,8 @@ public final class CakeClient {
     private static void tick(Minecraft client) {
         SmoothFontModule.cleanupLegacyPack();
         CakeClient.migrateLegacyKeybinds(client);
+        ServerSession.update(client);
+        ModuleManager.get().refreshAvailability();
 
         if (client.level != null) {
             var openedMenu = client.gui.screen() == null && CakeClient.OPEN_MENU_KEY.consumeClick();
@@ -62,7 +65,7 @@ public final class CakeClient {
                 CakeClient.drainKey(CakeClient.OPEN_MENU_KEY);
 
                 for (var module : ModuleManager.get().getModules()) {
-                    if (module.getKeyMapping().consumeClick() && CakeClient.canToggleFromScreen(client)) {
+                    if (module.getKeyMapping().consumeClick() && module.isAvailable() && CakeClient.canToggleFromScreen(client)) {
                         module.setEnabled(!module.isEnabled());
                     }
                 }

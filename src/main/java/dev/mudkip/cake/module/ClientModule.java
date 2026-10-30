@@ -4,9 +4,11 @@ import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mudkip.cake.CakeClientKeybinds;
 import dev.mudkip.cake.module.setting.ModuleSetting;
+import dev.mudkip.cake.server.ServerIntegration;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,19 +21,30 @@ public abstract class ClientModule {
     private final Identifier icon;
     private final List<ModuleSetting<?>> settings;
     private final KeyMapping keyMapping;
+    private final @Nullable ServerIntegration integration;
     private Runnable changeListener;
     private boolean enabled;
+    private boolean active;
 
     protected ClientModule(String id, Component name, Component description, ModuleCategory category, Identifier icon) {
-        this(id, name, description, category, icon, InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue());
+        this(id, name, description, category, icon, null, InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue());
+    }
+
+    protected ClientModule(String id, Component name, Component description, ModuleCategory category, Identifier icon, ServerIntegration integration) {
+        this(id, name, description, category, icon, integration, InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue());
     }
 
     protected ClientModule(String id, Component name, Component description, ModuleCategory category, Identifier icon, InputConstants.Type keyType, int defaultKey) {
+        this(id, name, description, category, icon, null, keyType, defaultKey);
+    }
+
+    protected ClientModule(String id, Component name, Component description, ModuleCategory category, Identifier icon, @Nullable ServerIntegration integration, InputConstants.Type keyType, int defaultKey) {
         this.id = id;
         this.name = name;
         this.description = description;
         this.category = category;
         this.icon = icon;
+        this.integration = integration;
         this.settings = new ArrayList<>();
         this.keyMapping = new KeyMapping(
                 "key.cake.module." + id,
@@ -70,8 +83,16 @@ public abstract class ClientModule {
         return this.keyMapping;
     }
 
+    public @Nullable ServerIntegration getIntegration() {
+        return this.integration;
+    }
+
+    public boolean isAvailable() {
+        return this.integration == null || this.integration.isCurrent();
+    }
+
     public boolean isEnabled() {
-        return this.enabled;
+        return this.active;
     }
 
     public void setEnabled(boolean enabled) {
@@ -79,14 +100,12 @@ public abstract class ClientModule {
             return;
         }
 
-        this.enabled = enabled;
-
-        if (enabled) {
-            this.onEnable();
-        } else {
-            this.onDisable();
+        if (enabled && !this.isAvailable()) {
+            return;
         }
 
+        this.enabled = enabled;
+        this.refreshAvailability();
         this.notifyChanged();
     }
 
@@ -130,12 +149,8 @@ public abstract class ClientModule {
         }
 
         var enabled = json.has("enabled") && json.get("enabled").getAsBoolean();
-        var wasEnabled = this.enabled;
         this.enabled = enabled;
-
-        if (wasEnabled && !enabled) {
-            this.onDisable();
-        }
+        this.refreshAvailability();
     }
 
     protected <T extends ModuleSetting<?>> T setting(T setting) {
@@ -145,8 +160,22 @@ public abstract class ClientModule {
     }
 
     void finishLoading() {
-        if (this.enabled) {
+        this.refreshAvailability();
+    }
+
+    void refreshAvailability() {
+        var active = this.enabled && this.isAvailable();
+
+        if (this.active == active) {
+            return;
+        }
+
+        this.active = active;
+
+        if (active) {
             this.onEnable();
+        } else {
+            this.onDisable();
         }
     }
 

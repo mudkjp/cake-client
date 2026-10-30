@@ -12,7 +12,10 @@ public final class ModuleWidgets {
 
     public static ButtonComponent enabledButton(ClientModule module, Runnable afterToggle) {
         var button = UIComponents.button(ModuleWidgets.label(module), component -> {
-            module.setEnabled(!module.isEnabled());
+            if (module.isAvailable()) {
+                module.setEnabled(!module.isEnabled());
+            }
+
             ModuleWidgets.updateEnabledButton(component, module);
             afterToggle.run();
         });
@@ -22,11 +25,23 @@ public final class ModuleWidgets {
     }
 
     public static void updateEnabledButton(ButtonComponent button, ClientModule module) {
+        if (!module.isAvailable()) {
+            button.setMessage(Component.translatable("cake.menu.unavailable"));
+            button.active(false);
+            button.renderer(UiStyles.UNAVAILABLE_BUTTON);
+            return;
+        }
+
         button.setMessage(ModuleWidgets.label(module));
+        button.active(true);
         button.renderer(module.isEnabled() ? UiStyles.ENABLED_BUTTON : UiStyles.DISABLED_BUTTON);
     }
 
     private static Component label(ClientModule module) {
+        if (!module.isAvailable()) {
+            return Component.translatable("cake.menu.unavailable");
+        }
+
         return Component.translatable(module.isEnabled() ? "cake.menu.enabled_state" : "cake.menu.disabled_state");
     }
 }

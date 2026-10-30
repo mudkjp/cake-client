@@ -3,6 +3,7 @@ package dev.mudkip.cake.module.modules;
 import com.google.gson.JsonObject;
 import dev.mudkip.cake.module.ClientModule;
 import dev.mudkip.cake.module.ModuleCategory;
+import dev.mudkip.cake.server.ServerIntegration;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -20,7 +21,11 @@ public abstract class HudModule extends ClientModule {
     private double scale;
 
     protected HudModule(String id, Component name, Component description, ModuleCategory category, Identifier icon, Anchor anchor, double offsetX, double offsetY) {
-        super(id, name, description, category, icon);
+        this(id, name, description, category, icon, null, anchor, offsetX, offsetY);
+    }
+
+    protected HudModule(String id, Component name, Component description, ModuleCategory category, Identifier icon, ServerIntegration integration, Anchor anchor, double offsetX, double offsetY) {
+        super(id, name, description, category, icon, integration);
         this.defaultAnchor = anchor;
         this.defaultOffsetX = offsetX;
         this.defaultOffsetY = offsetY;

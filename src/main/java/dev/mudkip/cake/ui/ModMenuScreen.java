@@ -170,7 +170,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
 
     private boolean hasModules(ModuleCategory category) {
         for (var module : ModuleManager.get().getModules()) {
-            if (module.getCategory() == category) {
+            if (module.getCategory() == category && module.isAvailable()) {
                 return true;
             }
         }
@@ -195,7 +195,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
                 }
 
                 for (var module : ModuleManager.get().getModules()) {
-                    if (module.getCategory() == category && this.matches(module, query)) {
+                    if (module.getCategory() == category && module.isAvailable() && this.matches(module, query)) {
                         visible.add(module);
                     }
                 }
@@ -229,9 +229,11 @@ public final class ModMenuScreen extends MenuOwoScreen {
             return true;
         }
 
+        var integration = module.getIntegration();
         return module.getId().contains(query)
                 || module.getName().getString().toLowerCase(Locale.ROOT).contains(query)
-                || module.getDescription().getString().toLowerCase(Locale.ROOT).contains(query);
+                || module.getDescription().getString().toLowerCase(Locale.ROOT).contains(query)
+                || (integration != null && integration.getName().toLowerCase(Locale.ROOT).contains(query));
     }
 
     private UIComponent moduleCard(ClientModule module, int cardWidth) {
@@ -254,7 +256,11 @@ public final class ModMenuScreen extends MenuOwoScreen {
                 .lineSpacing(0);
         name.horizontalSizing(Sizing.fill(100));
 
-        var description = UIComponents.label(this.cardText(module.getDescription(), textWidth, ModMenuScreen.MAX_DESCRIPTION_LINES))
+        var integration = module.getIntegration();
+        var descriptionLines = integration == null
+                ? ModMenuScreen.MAX_DESCRIPTION_LINES
+                : ModMenuScreen.MAX_DESCRIPTION_LINES - 1;
+        var description = UIComponents.label(this.cardText(module.getDescription(), textWidth, descriptionLines))
                 .color(Color.ofArgb(UiStyles.MUTED_TEXT))
                 .lineSpacing(0)
                 .maxWidth(textWidth);
@@ -262,6 +268,15 @@ public final class ModMenuScreen extends MenuOwoScreen {
 
         info.child(name);
         info.child(description);
+
+        if (integration != null) {
+            var badge = UIComponents.label(this.cardText(Component.literal(integration.getName()), textWidth, 1))
+                    .color(Color.ofArgb(UiStyles.SERVER_ACCENT))
+                    .lineSpacing(0)
+                    .maxWidth(textWidth);
+            badge.horizontalSizing(Sizing.fill(100));
+            info.child(badge);
+        }
 
         var top = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content())
                 .gap(6)

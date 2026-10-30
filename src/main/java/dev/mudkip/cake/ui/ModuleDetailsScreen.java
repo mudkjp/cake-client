@@ -26,7 +26,9 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
     private static final int PANEL_MAX_HEIGHT = 420;
 
     private final ClientModule module;
+    private ButtonComponent enabledButton;
     private ButtonComponent keyButton;
+    private @Nullable LabelComponent serverLabel;
     private LabelComponent conflictLabel;
     private boolean capturingKey;
 
@@ -71,10 +73,17 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
         panel.child(UIComponents.label(this.module.getCategory().getDisplayName())
                 .color(Color.ofArgb(this.module.getCategory().getColor())));
 
-        var enabled = ModuleWidgets.enabledButton(this.module, () -> {
+        if (this.module.getIntegration() != null) {
+            this.serverLabel = UIComponents.label(Component.empty())
+                    .color(Color.ofArgb(UiStyles.SERVER_ACCENT));
+            this.serverLabel.horizontalSizing(Sizing.fill(100));
+            panel.child(this.serverLabel);
+        }
+
+        this.enabledButton = ModuleWidgets.enabledButton(this.module, () -> {
         });
-        enabled.horizontalSizing(Sizing.fill(100));
-        panel.child(enabled);
+        this.enabledButton.horizontalSizing(Sizing.fill(100));
+        panel.child(this.enabledButton);
 
         if (this.module instanceof HudModule) {
             var editHud = UIComponents.button(
@@ -133,6 +142,17 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
         root.child(panel);
 
         this.updateKeyButton();
+        this.updateServerLabel();
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        this.updateServerLabel();
+
+        if (this.enabledButton != null) {
+            ModuleWidgets.updateEnabledButton(this.enabledButton, this.module);
+        }
     }
 
     @Override
@@ -192,6 +212,21 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
                 ? Component.translatable("cake.menu.press_key")
                 : this.keyLabel());
         this.updateConflictLabel();
+    }
+
+    private void updateServerLabel() {
+        var integration = this.module.getIntegration();
+
+        if (integration == null || this.serverLabel == null) {
+            return;
+        }
+
+        var available = this.module.isAvailable();
+        this.serverLabel.text(Component.translatable(
+                available ? "cake.menu.server_only" : "cake.menu.server_unavailable",
+                integration.getName()
+        ));
+        this.serverLabel.color(Color.ofArgb(available ? UiStyles.SERVER_ACCENT : UiStyles.MUTED_TEXT));
     }
 
     private void updateConflictLabel() {

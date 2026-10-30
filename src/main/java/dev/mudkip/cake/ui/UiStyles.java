@@ -12,6 +12,7 @@ public final class UiStyles {
     public static final int SEARCH_OUTLINE = 0x30FFFFFF;
     public static final int MUTED_TEXT = 0xFFB0B0B0;
     public static final int ALL_ACCENT = 0xFF6F9FD8;
+    public static final int SERVER_ACCENT = 0xFFE0A458;
     public static final int SCROLLBAR = 0x60FFFFFF;
     public static final ButtonComponent.Renderer SECONDARY_BUTTON = (context, button, delta) -> {
         var background = button.isHovered() ? 0xCC383838 : 0xCC2A2A2A;
@@ -27,6 +28,9 @@ public final class UiStyles {
     };
     public static final ButtonComponent.Renderer DISABLED_BUTTON = (context, button, delta) -> {
         UiStyles.drawButton(context, button, button.isHovered() ? 0xFFA84F63 : 0xFF8F3F4F);
+    };
+    public static final ButtonComponent.Renderer UNAVAILABLE_BUTTON = (context, button, delta) -> {
+        UiStyles.drawButton(context, button, 0xCC242424);
     };
 
     private UiStyles() {

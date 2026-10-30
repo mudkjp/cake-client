@@ -462,7 +462,7 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
         var modules = new ArrayList<HudModule>();
 
         for (var module : ModuleManager.get().getModules()) {
-            if (module instanceof HudModule hudModule) {
+            if (module instanceof HudModule hudModule && hudModule.isAvailable()) {
                 modules.add(hudModule);
             }
         }
