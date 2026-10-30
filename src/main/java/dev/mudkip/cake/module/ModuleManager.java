@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import dev.mudkip.cake.module.modules.BlockOutlineModule;
 import dev.mudkip.cake.module.modules.CleanScoreboardModule;
 import dev.mudkip.cake.module.modules.CpsModule;
+import dev.mudkip.cake.module.modules.DiscordRichPresenceModule;
 import dev.mudkip.cake.module.modules.FingerprintModule;
 import dev.mudkip.cake.module.modules.FpsModule;
 import dev.mudkip.cake.module.modules.FullBrightModule;
@@ -151,6 +152,7 @@ public final class ModuleManager {
         this.register(new ZoomModule());
         this.register(new FingerprintModule());
         this.register(new ScreenshotCompressionModule());
+        this.register(new DiscordRichPresenceModule());
     }
 
     private void register(ClientModule module) {

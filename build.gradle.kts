@@ -62,6 +62,9 @@ dependencies {
     implementation("io.wispforest:owo-lib:0.13.1+26.3")
     include("io.wispforest:owo-lib:0.13.1+26.3")
 
+    implementation("com.github.CrashSystemZ:jDRPC:v1.0.0")
+    include("com.github.CrashSystemZ:jDRPC:v1.0.0")
+
     implementation("dev.mudkip:compresso-core:1.1.0")
     implementation("com.github.usefulness:webp-imageio:0.11.0")
     embeddedLibraries("dev.mudkip:compresso-core:1.1.0")
@@ -124,6 +127,10 @@ tasks.jar {
 
     from(rootProject.file("LICENSE")) {
         rename { "${it}_cake" }
+    }
+
+    from(rootProject.file("libs/jdrpc-LICENSE.txt")) {
+        rename { "LICENSE_jdrpc" }
     }
 }
 
