@@ -1,5 +1,6 @@
 *.md
 *.py
+docs/
 
 .gradle/
 build/
