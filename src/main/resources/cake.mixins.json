@@ -5,6 +5,7 @@
     "package": "dev.mudkip.cake.mixin",
     "client": [
         "CameraMixin",
+        "CleanScoreboardMixin",
         "ClientClockInstanceMixin",
         "ClientClockManagerMixin",
         "FingerprintBrandMixin",

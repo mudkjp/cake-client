@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.mudkip.cake.module.modules.BlockOutlineModule;
+import dev.mudkip.cake.module.modules.CleanScoreboardModule;
 import dev.mudkip.cake.module.modules.CpsModule;
 import dev.mudkip.cake.module.modules.FingerprintModule;
 import dev.mudkip.cake.module.modules.FpsModule;
@@ -143,6 +144,7 @@ public final class ModuleManager {
         this.register(new TimeChangerModule());
         this.register(new BlockOutlineModule());
         this.register(new SmoothFontModule());
+        this.register(new CleanScoreboardModule());
         this.register(new FpsModule());
         this.register(new CpsModule());
         this.register(new PingModule());
