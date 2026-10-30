@@ -8,7 +8,6 @@ import dev.mudkip.cake.module.ModuleManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GlyphSource;
-import net.minecraft.client.gui.font.FontManager;
 import net.minecraft.client.gui.font.FontSet;
 import net.minecraft.client.gui.font.glyphs.EffectGlyph;
 import net.minecraft.network.chat.Component;

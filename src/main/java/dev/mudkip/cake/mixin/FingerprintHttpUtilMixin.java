@@ -11,11 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
-import java.net.Proxy;
-import java.net.URL;
+import java.net.*;
 import java.util.Map;
 
 @Mixin(HttpUtil.class)
