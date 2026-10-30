@@ -20,6 +20,7 @@
         "FingerprintSerializationMixin",
         "FingerprintTranslatableMixin",
         "FontManagerMixin",
+        "KeyMappingCategoryMixin",
         "LevelRendererMixin",
         "LightmapRenderStateExtractorMixin",
         "MinecraftFontMixin",

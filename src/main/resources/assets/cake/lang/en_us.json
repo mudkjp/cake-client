@@ -1,5 +1,4 @@
 {
-  "key.category.cake.main": "Cake Client",
   "key.cake.open_menu": "Open mod menu",
   "key.cake.module.fullbright": "Full Bright",
   "key.cake.module.timechanger": "Time Changer",
@@ -13,7 +12,6 @@
   "key.cake.module.fingerprint": "Fingerprint Protection",
   "key.cake.module.screenshotcompression": "Screenshot Compression",
   "key.cake.module.discordrichpresence": "Discord Rich Presence",
-  "cake.menu.title": "Cake Client",
   "cake.menu.search": "Search mods...",
   "cake.menu.no_results": "No mods found.",
   "cake.menu.category.all": "All",

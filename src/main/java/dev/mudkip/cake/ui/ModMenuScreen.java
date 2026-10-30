@@ -43,7 +43,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
     private int panelWidth;
 
     public ModMenuScreen() {
-        super(Component.translatable("cake.menu.title"));
+        super(Component.literal("Cake Client"));
         this.searchQuery = "";
     }
 
