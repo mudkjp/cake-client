@@ -22,17 +22,18 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Locale;
 
-public final class ModMenuScreen extends ZoomedOwoScreen {
-    private static final int PANEL_MAX_WIDTH = ZoomedOwoScreen.layoutPixels(520);
-    private static final int PANEL_MAX_HEIGHT = ZoomedOwoScreen.layoutPixels(320);
-    private static final int THREE_COLUMN_MIN_WIDTH = ZoomedOwoScreen.layoutPixels(340);
-    private static final int TWO_COLUMN_MIN_WIDTH = ZoomedOwoScreen.layoutPixels(220);
+public final class ModMenuScreen extends MenuOwoScreen {
+    private static final int PANEL_MAX_WIDTH = 520;
+    private static final int PANEL_MAX_HEIGHT = 320;
+    private static final int THREE_COLUMN_MIN_WIDTH = 340;
+    private static final int TWO_COLUMN_MIN_WIDTH = 220;
     private static final double PANEL_WIDTH_FRACTION = 0.5D;
     private static final double PANEL_HEIGHT_FRACTION = 0.55D;
     private static final int CARD_HEIGHT = 100;
     private static final int CARD_MARGIN = 4;
     private static final int ICON_SIZE = 20;
     private static final int FILTER_WIDTH = 64;
+    private static final int MAX_NAME_LINES = 2;
     private static final int MAX_DESCRIPTION_LINES = 4;
 
     private FlowLayout filterRow;
@@ -51,12 +52,10 @@ public final class ModMenuScreen extends ZoomedOwoScreen {
         root.surface(Surface.BLANK);
         root.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
 
-        var layoutWidth = this.layoutWidth();
-        var layoutHeight = this.layoutHeight();
-        var availableWidth = Math.max(1, layoutWidth - ZoomedOwoScreen.layoutPixels(32));
-        var availableHeight = Math.max(1, layoutHeight - ZoomedOwoScreen.layoutPixels(32));
-        var widthFraction = (int) Math.round(layoutWidth * ModMenuScreen.PANEL_WIDTH_FRACTION);
-        var heightFraction = (int) Math.round(layoutHeight * ModMenuScreen.PANEL_HEIGHT_FRACTION);
+        var availableWidth = Math.max(1, this.width - 32);
+        var availableHeight = Math.max(1, this.height - 32);
+        var widthFraction = (int) Math.round(this.width * ModMenuScreen.PANEL_WIDTH_FRACTION);
+        var heightFraction = (int) Math.round(this.height * ModMenuScreen.PANEL_HEIGHT_FRACTION);
 
         this.panelWidth = Math.max(1, Math.min(ModMenuScreen.PANEL_MAX_WIDTH, Math.min(availableWidth, widthFraction)));
         var panelHeight = Math.max(1, Math.min(ModMenuScreen.PANEL_MAX_HEIGHT, Math.min(availableHeight, heightFraction)));
@@ -184,43 +183,45 @@ public final class ModMenuScreen extends ZoomedOwoScreen {
             return;
         }
 
-        this.gridContainer.clearChildren();
+        this.withMenuFont(() -> {
+            this.gridContainer.clearChildren();
 
-        var query = this.searchQuery.trim().toLowerCase(Locale.ROOT);
-        var visible = new ArrayList<ClientModule>();
+            var query = this.searchQuery.trim().toLowerCase(Locale.ROOT);
+            var visible = new ArrayList<ClientModule>();
 
-        for (var category : ModuleCategory.values()) {
-            if (this.categoryFilter != null && this.categoryFilter != category) {
-                continue;
-            }
+            for (var category : ModuleCategory.values()) {
+                if (this.categoryFilter != null && this.categoryFilter != category) {
+                    continue;
+                }
 
-            for (var module : ModuleManager.get().getModules()) {
-                if (module.getCategory() == category && this.matches(module, query)) {
-                    visible.add(module);
+                for (var module : ModuleManager.get().getModules()) {
+                    if (module.getCategory() == category && this.matches(module, query)) {
+                        visible.add(module);
+                    }
                 }
             }
-        }
 
-        if (visible.isEmpty()) {
-            this.gridContainer.child(UIComponents.label(Component.translatable("cake.menu.no_results"))
-                    .color(Color.ofArgb(UiStyles.MUTED_TEXT)));
-            return;
-        }
+            if (visible.isEmpty()) {
+                this.gridContainer.child(UIComponents.label(Component.translatable("cake.menu.no_results"))
+                        .color(Color.ofArgb(UiStyles.MUTED_TEXT)));
+                return;
+            }
 
-        var maxColumns = this.panelWidth >= ModMenuScreen.THREE_COLUMN_MIN_WIDTH
-                ? 3
-                : this.panelWidth >= ModMenuScreen.TWO_COLUMN_MIN_WIDTH ? 2 : 1;
-        var columns = Math.max(1, Math.min(maxColumns, visible.size()));
-        var usableWidth = Math.max(1, this.panelWidth - 24);
-        var cardWidth = Math.max(1, usableWidth / columns - ModMenuScreen.CARD_MARGIN * 2);
-        var rows = (visible.size() + columns - 1) / columns;
-        var grid = UIContainers.grid(Sizing.content(), Sizing.content(), rows, columns);
+            var maxColumns = this.panelWidth >= ModMenuScreen.THREE_COLUMN_MIN_WIDTH
+                    ? 3
+                    : this.panelWidth >= ModMenuScreen.TWO_COLUMN_MIN_WIDTH ? 2 : 1;
+            var columns = Math.max(1, Math.min(maxColumns, visible.size()));
+            var usableWidth = Math.max(1, this.panelWidth - 24);
+            var cardWidth = Math.max(1, usableWidth / columns - ModMenuScreen.CARD_MARGIN * 2);
+            var rows = (visible.size() + columns - 1) / columns;
+            var grid = UIContainers.grid(Sizing.content(), Sizing.content(), rows, columns);
 
-        for (var index = 0; index < visible.size(); index++) {
-            grid.child(this.moduleCard(visible.get(index), cardWidth), index / columns, index % columns);
-        }
+            for (var index = 0; index < visible.size(); index++) {
+                grid.child(this.moduleCard(visible.get(index), cardWidth), index / columns, index % columns);
+            }
 
-        this.gridContainer.child(grid);
+            this.gridContainer.child(grid);
+        });
     }
 
     private boolean matches(ClientModule module, String query) {
@@ -246,15 +247,17 @@ public final class ModMenuScreen extends ZoomedOwoScreen {
         icon.blend(true);
 
         var info = UIContainers.verticalFlow(Sizing.expand(100), Sizing.content()).gap(1);
+        var textWidth = Math.max(1, cardWidth - 16 - ModMenuScreen.ICON_SIZE - 6);
 
-        var name = UIComponents.label(module.getName()).shadow(true).lineSpacing(0);
+        var name = UIComponents.label(this.cardText(module.getName(), textWidth, ModMenuScreen.MAX_NAME_LINES))
+                .shadow(true)
+                .lineSpacing(0);
         name.horizontalSizing(Sizing.fill(100));
 
-        var descriptionWidth = Math.max(1, cardWidth - 16 - ModMenuScreen.ICON_SIZE - 6);
-        var description = UIComponents.label(this.cardDescription(module, descriptionWidth))
+        var description = UIComponents.label(this.cardText(module.getDescription(), textWidth, ModMenuScreen.MAX_DESCRIPTION_LINES))
                 .color(Color.ofArgb(UiStyles.MUTED_TEXT))
                 .lineSpacing(0)
-                .maxWidth(descriptionWidth);
+                .maxWidth(textWidth);
         description.horizontalSizing(Sizing.fill(100));
 
         info.child(name);
@@ -286,20 +289,19 @@ public final class ModMenuScreen extends ZoomedOwoScreen {
         return card;
     }
 
-    private Component cardDescription(ClientModule module, int maxWidth) {
-        var description = module.getDescription();
-        var font = this.minecraft.font;
+    private Component cardText(Component text, int maxWidth, int maxLines) {
+        var font = this.menuFont;
 
-        if (font.split(description, maxWidth).size() <= ModMenuScreen.MAX_DESCRIPTION_LINES) {
-            return description;
+        if (font.split(text, maxWidth).size() <= maxLines) {
+            return text;
         }
 
-        var text = description.getString();
+        var plain = text.getString();
 
-        for (var end = text.length() - 1; end > 0; end--) {
-            var truncated = Component.literal(text.substring(0, end).stripTrailing() + "...");
+        for (var end = plain.length() - 1; end > 0; end--) {
+            var truncated = Component.literal(plain.substring(0, end).stripTrailing() + "...");
 
-            if (font.split(truncated, maxWidth).size() <= ModMenuScreen.MAX_DESCRIPTION_LINES) {
+            if (font.split(truncated, maxWidth).size() <= maxLines) {
                 return truncated;
             }
         }

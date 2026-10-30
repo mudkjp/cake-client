@@ -21,9 +21,9 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
-public final class ModuleDetailsScreen extends ZoomedOwoScreen {
-    private static final int PANEL_MAX_WIDTH = ZoomedOwoScreen.layoutPixels(460);
-    private static final int PANEL_MAX_HEIGHT = ZoomedOwoScreen.layoutPixels(420);
+public final class ModuleDetailsScreen extends MenuOwoScreen {
+    private static final int PANEL_MAX_WIDTH = 460;
+    private static final int PANEL_MAX_HEIGHT = 420;
 
     private final ClientModule module;
     private ButtonComponent keyButton;
@@ -40,8 +40,8 @@ public final class ModuleDetailsScreen extends ZoomedOwoScreen {
         root.surface(Surface.BLANK);
         root.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
 
-        var width = Math.min(PANEL_MAX_WIDTH, Math.max(1, this.layoutWidth() - ZoomedOwoScreen.layoutPixels(32)));
-        var height = Math.min(PANEL_MAX_HEIGHT, Math.max(1, this.layoutHeight() - ZoomedOwoScreen.layoutPixels(32)));
+        var width = Math.min(PANEL_MAX_WIDTH, Math.max(1, this.width - 32));
+        var height = Math.min(PANEL_MAX_HEIGHT, Math.max(1, this.height - 32));
 
         var panel = UIContainers.verticalFlow(Sizing.fixed(width), Sizing.fixed(height))
                 .gap(8);

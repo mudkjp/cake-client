@@ -104,20 +104,24 @@ public final class SmoothFontModule extends ClientModule {
     }
 
     private static Font createFont(FontManagerAccess manager, boolean nonFishy) {
+        return SmoothFontModule.createFont(manager, SmoothFontModule.SMOOTH_FONT, nonFishy);
+    }
+
+    public static Font createFont(FontManagerAccess manager, Identifier fallback, boolean nonFishy) {
         return new Font(new Font.Provider() {
             @Override
             public GlyphSource glyphs(FontDescription description) {
-                return SmoothFontModule.resolveSet(manager, description).source(nonFishy);
+                return SmoothFontModule.resolveSet(manager, fallback, description).source(nonFishy);
             }
 
             @Override
             public EffectGlyph effect() {
-                return SmoothFontModule.resolveSet(manager, FontDescription.DEFAULT).whiteGlyph();
+                return SmoothFontModule.resolveSet(manager, fallback, FontDescription.DEFAULT).whiteGlyph();
             }
         });
     }
 
-    private static FontSet resolveSet(FontManagerAccess manager, FontDescription description) {
+    private static FontSet resolveSet(FontManagerAccess manager, Identifier fallback, FontDescription description) {
         if (description instanceof FontDescription.Resource resource
                 && !Minecraft.DEFAULT_FONT.equals(resource.id())) {
             var set = manager.cake$getFontSet(resource.id());
@@ -127,10 +131,10 @@ public final class SmoothFontModule extends ClientModule {
             }
         }
 
-        var smooth = manager.cake$getFontSet(SmoothFontModule.SMOOTH_FONT);
+        var resolved = manager.cake$getFontSet(fallback);
 
-        if (smooth != null) {
-            return smooth;
+        if (resolved != null) {
+            return resolved;
         }
 
         var vanilla = manager.cake$getFontSet(Minecraft.DEFAULT_FONT);
