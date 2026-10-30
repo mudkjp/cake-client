@@ -130,6 +130,29 @@ tasks.jar {
 val publishJar = if (obfuscated) tasks.named<AbstractArchiveTask>("remapJar") else tasks.named<AbstractArchiveTask>("jar")
 val publishSourcesJar = if (obfuscated) tasks.named<AbstractArchiveTask>("remapSourcesJar") else tasks.named<AbstractArchiveTask>("sourcesJar")
 
+val prismModsDir = providers.gradleProperty("prismModsDir")
+    .orElse("${System.getProperty("user.home")}/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher/instances/Survival/minecraft/mods")
+
+tasks.register<Copy>("copyToPrism") {
+    group = "deployment"
+    description = "Builds the mod and copies the jar into the Prism Launcher Survival mods folder"
+    dependsOn(publishJar)
+
+    from(publishJar.flatMap { it.archiveFile })
+    into(prismModsDir)
+
+    doFirst {
+        val modsDir = file(prismModsDir.get())
+        val targetName = publishJar.get().archiveFile.get().asFile.name
+
+        if (modsDir.isDirectory) {
+            modsDir.listFiles { file ->
+                file.isFile && file.name.startsWith("cake-client-") && file.extension == "jar" && file.name != targetName
+            }?.forEach { it.delete() }
+        }
+    }
+}
+
 publishMods {
     file = publishJar.flatMap { it.archiveFile }
     additionalFiles.from(publishSourcesJar.flatMap { it.archiveFile })
