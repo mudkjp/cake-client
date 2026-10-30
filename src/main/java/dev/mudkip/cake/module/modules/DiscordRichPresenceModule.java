@@ -2,6 +2,7 @@ package dev.mudkip.cake.module.modules;
 
 import dev.mudkip.cake.discord.DiscordRpc;
 import dev.mudkip.cake.discord.ServerMappings;
+import dev.mudkip.cake.discord.ServerMappings.Mapping;
 import dev.mudkip.cake.module.ClientModule;
 import dev.mudkip.cake.module.ModuleCategory;
 import dev.mudkip.cake.module.setting.BooleanSetting;
@@ -11,6 +12,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import org.jspecify.annotations.Nullable;
 
 public final class DiscordRichPresenceModule extends ClientModule {
     private static final Identifier ICON = Identifier.fromNamespaceAndPath("cake", "textures/gui/icons/discordrichpresence.png");
@@ -65,15 +67,35 @@ public final class DiscordRichPresenceModule extends ClientModule {
     }
 
     private Activity createActivity(Minecraft client) {
-        return new Activity.Builder()
-                .setDetails(this.getDetails(client))
+        var mapping = this.getMapping(client);
+        var builder = new Activity.Builder()
+                .setDetails(this.getDetails(client, mapping))
                 .setState("Minecraft " + SharedConstants.getCurrentVersion().name())
                 .setStartTimestamp(this.startTime)
-                .setLargeImage(DiscordRichPresenceModule.LARGE_IMAGE, DiscordRichPresenceModule.LARGE_IMAGE_TEXT)
-                .build();
+                .setLargeImage(DiscordRichPresenceModule.LARGE_IMAGE, DiscordRichPresenceModule.LARGE_IMAGE_TEXT);
+
+        if (mapping != null && mapping.logo() != null) {
+            builder.setSmallImage(mapping.logo(), mapping.name());
+        }
+
+        return builder.build();
     }
 
-    private String getDetails(Minecraft client) {
+    private @Nullable Mapping getMapping(Minecraft client) {
+        if (!this.showServer.getValue() || client.level == null || client.hasSingleplayerServer()) {
+            return null;
+        }
+
+        var server = client.getCurrentServer();
+
+        if (server == null || server.isRealm()) {
+            return null;
+        }
+
+        return ServerMappings.lookup(server.ip);
+    }
+
+    private String getDetails(Minecraft client, @Nullable Mapping mapping) {
         if (client.level == null) {
             return "In the menus";
         }
@@ -92,11 +114,11 @@ public final class DiscordRichPresenceModule extends ClientModule {
             return "Playing on Realms";
         }
 
-        var name = this.showServer.getValue() ? ServerMappings.lookup(server.ip) : null;
-
-        if (name == null) {
+        if (mapping == null) {
             return "Playing Multiplayer";
         }
+
+        var name = mapping.name();
 
         if (name.codePointCount(0, name.length()) > DiscordRichPresenceModule.MAX_SERVER_NAME_LENGTH) {
             name = name.substring(0, name.offsetByCodePoints(0, DiscordRichPresenceModule.MAX_SERVER_NAME_LENGTH));

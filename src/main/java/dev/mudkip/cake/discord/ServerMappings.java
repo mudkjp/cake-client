@@ -29,6 +29,7 @@ public final class ServerMappings {
     private static final Path CACHE = FabricLoader.getInstance().getConfigDir().resolve("cake-servermappings.json");
     private static final long CACHE_AGE = 7L * 24L * 60L * 60L * 1000L;
     private static final long RETRY_DELAY = 5L * 60L * 1000L;
+    private static final int CACHE_VERSION = 1;
     private static final Lookup EMPTY = new Lookup(Map.of(), List.of());
     private static volatile Lookup mappings = ServerMappings.EMPTY;
     private static volatile long fetched;
@@ -59,7 +60,7 @@ public final class ServerMappings {
         thread.start();
     }
 
-    public static @Nullable String lookup(String address) {
+    public static @Nullable Mapping lookup(String address) {
         var host = ServerMappings.normalize(address);
 
         if (host == null) {
@@ -70,22 +71,22 @@ public final class ServerMappings {
         var exact = current.exact().get(host);
 
         if (exact != null) {
-            return exact;
+            return new Mapping(exact.name(), exact.logo());
         }
 
-        String best = null;
+        Entry best = null;
         var bestLength = 0;
 
         for (var entry : current.entries()) {
             for (var mapped : entry.addresses()) {
                 if (mapped.length() > bestLength && host.endsWith("." + mapped)) {
-                    best = entry.name();
+                    best = entry;
                     bestLength = mapped.length();
                 }
             }
         }
 
-        return best;
+        return best == null ? null : new Mapping(best.name(), best.logo());
     }
 
     private static void load() {
@@ -121,7 +122,7 @@ public final class ServerMappings {
         try (var reader = Files.newBufferedReader(ServerMappings.CACHE, StandardCharsets.UTF_8)) {
             var cache = ServerMappings.GSON.fromJson(reader, Cache.class);
 
-            if (cache == null) {
+            if (cache == null || cache.version() != ServerMappings.CACHE_VERSION) {
                 return;
             }
 
@@ -159,6 +160,8 @@ public final class ServerMappings {
 
             while (json.hasNext()) {
                 String name = null;
+                String logo128 = null;
+                String logo64 = null;
                 List<String> addresses = List.of();
                 var inactive = false;
 
@@ -180,6 +183,21 @@ public final class ServerMappings {
                             json.endArray();
                             addresses = values;
                         }
+                        case "images" -> {
+                            json.beginObject();
+
+                            while (json.hasNext()) {
+                                var imageField = json.nextName();
+
+                                switch (imageField) {
+                                    case "logo-128" -> logo128 = json.nextString();
+                                    case "logo-64" -> logo64 = json.nextString();
+                                    default -> json.skipValue();
+                                }
+                            }
+
+                            json.endObject();
+                        }
                         case "inactive" -> inactive = json.nextBoolean();
                         default -> json.skipValue();
                     }
@@ -187,15 +205,17 @@ public final class ServerMappings {
 
                 json.endObject();
 
+                var logo = logo128 != null ? logo128 : logo64;
+
                 if (!inactive && name != null && !addresses.isEmpty()) {
-                    servers.add(new Entry(name, List.copyOf(addresses)));
+                    servers.add(new Entry(name, logo, List.copyOf(addresses)));
                 }
             }
 
             json.endArray();
         }
 
-        return new Cache(System.currentTimeMillis(), List.copyOf(servers));
+        return new Cache(ServerMappings.CACHE_VERSION, System.currentTimeMillis(), List.copyOf(servers));
     }
 
     private static void apply(Cache cache) {
@@ -205,7 +225,7 @@ public final class ServerMappings {
             return;
         }
 
-        var exact = new HashMap<String, String>();
+        var exact = new HashMap<String, Entry>();
         var entries = new ArrayList<Entry>();
 
         for (var entry : servers) {
@@ -224,12 +244,16 @@ public final class ServerMappings {
 
                 if (normalized != null) {
                     addresses.add(normalized);
-                    exact.putIfAbsent(normalized, entry.name());
                 }
             }
 
             if (!addresses.isEmpty()) {
-                entries.add(new Entry(entry.name(), List.copyOf(addresses)));
+                var normalizedEntry = new Entry(entry.name(), entry.logo(), List.copyOf(addresses));
+                entries.add(normalizedEntry);
+
+                for (var address : addresses) {
+                    exact.putIfAbsent(address, normalizedEntry);
+                }
             }
         }
 
@@ -269,15 +293,19 @@ public final class ServerMappings {
         return value.isEmpty() ? null : value;
     }
 
-    private record Cache(long fetched, List<Entry> servers) {
+    public record Mapping(String name, @Nullable String logo) {
 
     }
 
-    private record Entry(String name, List<String> addresses) {
+    private record Cache(int version, long fetched, List<Entry> servers) {
 
     }
 
-    private record Lookup(Map<String, String> exact, List<Entry> entries) {
+    private record Entry(String name, @Nullable String logo, List<String> addresses) {
+
+    }
+
+    private record Lookup(Map<String, Entry> exact, List<Entry> entries) {
 
     }
 }
