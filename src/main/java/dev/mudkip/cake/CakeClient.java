@@ -3,6 +3,7 @@ package dev.mudkip.cake;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mudkip.cake.module.ModuleManager;
 import dev.mudkip.cake.module.modules.SmoothFontModule;
+import dev.mudkip.cake.server.Locraw;
 import dev.mudkip.cake.server.ServerSession;
 import dev.mudkip.cake.ui.HudEditorScreen;
 import dev.mudkip.cake.ui.HudOverlay;
@@ -42,6 +43,7 @@ public final class CakeClient {
 
         KeyMappingHelper.registerKeyMapping(CakeClient.OPEN_MENU_KEY);
         HudOverlay.register();
+        Locraw.register();
 
         for (var module : ModuleManager.get().getModules()) {
             KeyMappingHelper.registerKeyMapping(module.getKeyMapping());

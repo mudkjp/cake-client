@@ -6,6 +6,8 @@ import dev.mudkip.cake.discord.ServerMappings.Mapping;
 import dev.mudkip.cake.module.ClientModule;
 import dev.mudkip.cake.module.ModuleCategory;
 import dev.mudkip.cake.module.setting.BooleanSetting;
+import dev.mudkip.cake.server.BedwarsPracticeIntegration;
+import dev.mudkip.cake.server.Locraw;
 import fun.crashsystem.jdrpc.activity.Activity;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.SharedConstants;
@@ -46,11 +48,13 @@ public final class DiscordRichPresenceModule extends ClientModule {
     @Override
     public void onEnable() {
         this.startTime = System.currentTimeMillis() / 1000L;
+        Locraw.reset();
         this.rpc.start();
     }
 
     @Override
     public void onDisable() {
+        Locraw.reset();
         this.rpc.stop();
     }
 
@@ -58,6 +62,8 @@ public final class DiscordRichPresenceModule extends ClientModule {
         if (!this.isEnabled()) {
             return;
         }
+
+        Locraw.tick(client, this.showServer.getValue());
 
         if (this.showServer.getValue()) {
             ServerMappings.ensureLoaded();
@@ -67,35 +73,45 @@ public final class DiscordRichPresenceModule extends ClientModule {
     }
 
     private Activity createActivity(Minecraft client) {
-        var mapping = this.getMapping(client);
+        var server = this.getServerContext(client);
+        var game = server == null ? null : Locraw.getGame();
         var builder = new Activity.Builder()
-                .setDetails(this.getDetails(client, mapping))
-                .setState("Minecraft " + SharedConstants.getCurrentVersion().name())
+                .setDetails(this.getDetails(client, server))
+                .setState(this.getState(server, game))
                 .setStartTimestamp(this.startTime)
-                .setLargeImage(DiscordRichPresenceModule.LARGE_IMAGE, DiscordRichPresenceModule.LARGE_IMAGE_TEXT);
+                .setLargeImage(DiscordRichPresenceModule.LARGE_IMAGE, this.getLargeImageText(server));
 
-        if (mapping != null && mapping.logo() != null) {
-            builder.setSmallImage(mapping.logo(), mapping.name());
+        if (server != null && server.mapping() != null && server.mapping().logo() != null) {
+            builder.setSmallImage(server.mapping().logo(), server.address());
         }
 
         return builder.build();
     }
 
-    private @Nullable Mapping getMapping(Minecraft client) {
+    private @Nullable ServerContext getServerContext(Minecraft client) {
         if (!this.showServer.getValue() || client.level == null || client.hasSingleplayerServer()) {
             return null;
         }
 
         var server = client.getCurrentServer();
 
-        if (server == null || server.isRealm()) {
+        if (server == null || server.isRealm() || server.ip == null || server.ip.isBlank()) {
             return null;
         }
 
-        return ServerMappings.lookup(server.ip);
+        var mapping = ServerMappings.lookup(server.ip);
+        var name = mapping != null
+                ? mapping.name()
+                : BedwarsPracticeIntegration.INSTANCE.isCurrent() ? BedwarsPracticeIntegration.INSTANCE.getName() : null;
+
+        if (name == null) {
+            return null;
+        }
+
+        return new ServerContext(name, server.ip, mapping);
     }
 
-    private String getDetails(Minecraft client, @Nullable Mapping mapping) {
+    private String getDetails(Minecraft client, @Nullable ServerContext server) {
         if (client.level == null) {
             return "In the menus";
         }
@@ -104,26 +120,44 @@ public final class DiscordRichPresenceModule extends ClientModule {
             return "Playing Singleplayer";
         }
 
-        var server = client.getCurrentServer();
+        var current = client.getCurrentServer();
+
+        if (current == null) {
+            return "Playing Multiplayer";
+        }
+
+        if (current.isRealm()) {
+            return "Playing on Realms";
+        }
 
         if (server == null) {
             return "Playing Multiplayer";
         }
 
-        if (server.isRealm()) {
-            return "Playing on Realms";
-        }
-
-        if (mapping == null) {
-            return "Playing Multiplayer";
-        }
-
-        var name = mapping.name();
+        var name = server.name();
 
         if (name.codePointCount(0, name.length()) > DiscordRichPresenceModule.MAX_SERVER_NAME_LENGTH) {
             name = name.substring(0, name.offsetByCodePoints(0, DiscordRichPresenceModule.MAX_SERVER_NAME_LENGTH));
         }
 
         return "Playing on " + name;
+    }
+
+    private @Nullable String getState(@Nullable ServerContext server, @Nullable String game) {
+        if (server == null) {
+            return "Minecraft " + SharedConstants.getCurrentVersion().name();
+        }
+
+        return game;
+    }
+
+    private String getLargeImageText(@Nullable ServerContext server) {
+        return server == null
+                ? DiscordRichPresenceModule.LARGE_IMAGE_TEXT
+                : "Minecraft " + SharedConstants.getCurrentVersion().name();
+    }
+
+    private record ServerContext(String name, String address, @Nullable Mapping mapping) {
+
     }
 }

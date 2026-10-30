@@ -123,7 +123,7 @@
   "cake.module.discordrichpresence.name": "Discord Rich Presence",
   "cake.module.discordrichpresence.description": "Shows your Minecraft activity on your Discord profile. Requires the Discord desktop app.",
   "cake.setting.discordrichpresence.show_server.name": "Show Server",
-  "cake.setting.discordrichpresence.show_server.description": "Shows the name and icon of the server you are on. Only public servers listed in Lunar Client's ServerMappings are shown.",
+  "cake.setting.discordrichpresence.show_server.description": "Shows the name and icon of the server you are on, including supported server integrations and public servers listed in Lunar Client's ServerMappings.",
   "cake.hud.editor.title": "HUD Editor",
   "cake.hud.editor.hint": "Drag to move, release near a snap point to anchor, or click a snap point. Drag the corner to scale.",
   "cake.hud.editor.reset": "Reset all",
