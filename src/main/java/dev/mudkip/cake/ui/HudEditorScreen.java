@@ -10,8 +10,13 @@ import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.UIContainers;
-import io.wispforest.owo.ui.core.*;
-import net.minecraft.client.Minecraft;
+import io.wispforest.owo.ui.core.Color;
+import io.wispforest.owo.ui.core.HorizontalAlignment;
+import io.wispforest.owo.ui.core.Insets;
+import io.wispforest.owo.ui.core.OwoUIAdapter;
+import io.wispforest.owo.ui.core.Sizing;
+import io.wispforest.owo.ui.core.Surface;
+import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -34,8 +39,9 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
     private static final int ANCHOR_MARKER_ACTIVE = 0xFFFFD166;
     private static final float DISABLED_ALPHA = 0.45F;
 
+    private final ModuleManager moduleManager;
+    private final List<HudModule> hudModules;
     private final @Nullable Screen returnScreen;
-    private final List<HudModule> modules;
     private @Nullable HudModule selected;
     private @Nullable HudModule dragging;
     private @Nullable Anchor activeSnap;
@@ -47,11 +53,12 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
     private double resizeStartY;
     private double resizeStartScale;
 
-    public HudEditorScreen(@Nullable Screen returnScreen, @Nullable HudModule selected) {
+    public HudEditorScreen(ModuleManager moduleManager, @Nullable Screen returnScreen, @Nullable HudModule selected) {
         super(Component.translatable("cake.hud.editor.title"));
+        this.moduleManager = moduleManager;
+        this.hudModules = HudEditorScreen.findHudModules(moduleManager);
         this.returnScreen = returnScreen;
         this.selected = selected;
-        this.modules = HudEditorScreen.hudModules();
     }
 
     @Override
@@ -114,7 +121,7 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
         var hoveredAnchor = this.selected == null ? null : this.anchorAt(mouseX, mouseY);
         var hoveredResize = this.selected != null && this.isResizeHandle(mouseX, mouseY);
 
-        for (var module : this.modules) {
+        for (var module : this.hudModules) {
             var x = (int) Math.round(module.getX(screenWidth));
             var y = (int) Math.round(module.getY(screenHeight));
             var width = module.getWidth();
@@ -234,13 +241,8 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
-
-    @Override
     public void onClose() {
-        ModuleManager.get().saveIfDirty();
+        this.moduleManager.saveIfDirty();
         this.minecraft.gui.setScreen(this.returnScreen);
     }
 
@@ -272,7 +274,7 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
         }
 
         var naturalWidth = Math.max(1, module.getTextWidth());
-        var naturalHeight = Math.max(1, Minecraft.getInstance().font.lineHeight);
+        var naturalHeight = Math.max(1, this.minecraft.font.lineHeight);
         var scaleX = (mouseX - this.resizeStartX) / naturalWidth;
         var scaleY = (mouseY - this.resizeStartY) / naturalHeight;
         var scale = Math.abs(scaleX - this.resizeStartScale) >= Math.abs(scaleY - this.resizeStartScale)
@@ -292,7 +294,7 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     private @Nullable Anchor findSnapAnchor(double x, double y, int width, int height) {
-        Anchor nearest = null;
+        @Nullable Anchor nearest = null;
         var nearestDistance = HudEditorScreen.SNAP_DISTANCE;
 
         for (var anchor : Anchor.values()) {
@@ -415,7 +417,7 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     private void resetAll() {
-        for (var module : this.modules) {
+        for (var module : this.hudModules) {
             module.resetLayout();
         }
 
@@ -427,8 +429,8 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     private @Nullable HudModule moduleAt(double mouseX, double mouseY) {
-        for (var index = this.modules.size() - 1; index >= 0; index--) {
-            var module = this.modules.get(index);
+        for (var index = this.hudModules.size() - 1; index >= 0; index--) {
+            var module = this.hudModules.get(index);
             var x = module.getX(this.width);
             var y = module.getY(this.height);
             var width = module.getWidth();
@@ -445,22 +447,22 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
         return null;
     }
 
-    private static void drawOutline(GuiGraphicsExtractor graphics, int x, int y, int width, int height, int color) {
-        graphics.fill(x, y, x + width, y + 1, color);
-        graphics.fill(x, y + height - 1, x + width, y + height, color);
-        graphics.fill(x, y + 1, x + 1, y + height - 1, color);
-        graphics.fill(x + width - 1, y + 1, x + width, y + height - 1, color);
-    }
-
-    private static List<HudModule> hudModules() {
+    private static List<HudModule> findHudModules(ModuleManager moduleManager) {
         var modules = new ArrayList<HudModule>();
 
-        for (var module : ModuleManager.get().getModules()) {
+        for (var module : moduleManager.getModules()) {
             if (module instanceof HudModule hudModule && hudModule.isAvailable()) {
                 modules.add(hudModule);
             }
         }
 
         return modules;
+    }
+
+    private static void drawOutline(GuiGraphicsExtractor graphics, int x, int y, int width, int height, int color) {
+        graphics.fill(x, y, x + width, y + 1, color);
+        graphics.fill(x, y + height - 1, x + width, y + height, color);
+        graphics.fill(x, y + 1, x + 1, y + height - 1, color);
+        graphics.fill(x + width - 1, y + 1, x + width, y + height - 1, color);
     }
 }

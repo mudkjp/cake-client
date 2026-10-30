@@ -14,17 +14,20 @@ public final class IntSetting extends ModuleSetting<Integer> {
     private final int max;
     private final String suffix;
 
-    public IntSetting(String id, Component name, Component description, int min, int max, int defaultValue, String suffix) {
+    public IntSetting(
+            String id,
+            Component name,
+            Component description,
+            int min,
+            int max,
+            int defaultValue,
+            String suffix
+    ) {
         super(id, name, description, defaultValue);
         this.min = min;
         this.max = max;
         this.suffix = suffix;
-        this.value = Math.clamp(defaultValue, min, max);
-    }
-
-    @Override
-    public void setValue(Integer value) {
-        super.setValue(Math.clamp(value, this.min, this.max));
+        this.setInitialValue(this.clamp(defaultValue));
     }
 
     @Override
@@ -53,5 +56,14 @@ public final class IntSetting extends ModuleSetting<Integer> {
         if (json.isJsonPrimitive() && json.getAsJsonPrimitive().isNumber()) {
             this.setValue(json.getAsInt());
         }
+    }
+
+    @Override
+    protected Integer sanitize(Integer value) {
+        return this.clamp(value);
+    }
+
+    private int clamp(int value) {
+        return Math.clamp(value, this.min, this.max);
     }
 }

@@ -71,146 +71,63 @@ public final class Locraw {
             Map.entry("resourceolddouble", "2v2 Old Resource Collect"),
             Map.entry("wallfightsolo", "Wall Fight Solo")
     );
-    private static @Nullable String game;
-    private static long lastRequest;
-    private static long lastCountdownTrigger;
-    private static long lastGameStartTrigger;
-    private static boolean manual;
-    private static boolean autoRequest;
-    private static boolean active;
 
-    private Locraw() {
+    private final Minecraft client;
+    private final ServerSession serverSession;
+    private final ServerIntegration integration;
+    private @Nullable String game;
+    private long lastRequest;
+    private long lastCountdownTrigger;
+    private long lastGameStartTrigger;
+    private boolean manual;
+    private boolean autoRequest;
+    private boolean active;
 
+    public Locraw(Minecraft client, ServerSession serverSession, ServerIntegration integration) {
+        this.client = client;
+        this.serverSession = serverSession;
+        this.integration = integration;
     }
 
-    public static void register() {
-        ClientReceiveMessageEvents.ALLOW_GAME.register(Locraw::allowGameMessage);
-        ClientSendMessageEvents.COMMAND.register(Locraw::onCommand);
+    public void register() {
+        ClientReceiveMessageEvents.ALLOW_GAME.register(this::allowGameMessage);
+        ClientSendMessageEvents.COMMAND.register(this::onCommand);
     }
 
-    public static void tick(Minecraft client, boolean enabled) {
-        if (!enabled || !BedwarsPracticeIntegration.INSTANCE.isCurrent()) {
-            Locraw.reset();
+    public void tick(boolean enabled) {
+        if (!enabled || !this.serverSession.isOn(this.integration)) {
+            this.reset();
             return;
         }
 
-        Locraw.active = true;
+        this.active = true;
 
-        if (Locraw.manual) {
+        if (this.manual) {
             return;
         }
 
         var now = Util.getMillis();
 
-        if (now - Locraw.lastRequest < Locraw.REQUEST_INTERVAL) {
+        if (now - this.lastRequest < Locraw.REQUEST_INTERVAL) {
             return;
         }
 
-        Locraw.lastRequest = now;
-        Locraw.request(client);
+        this.lastRequest = now;
+        this.request();
     }
 
-    public static @Nullable String getGame() {
-        return Locraw.active && BedwarsPracticeIntegration.INSTANCE.isCurrent() ? Locraw.game : null;
+    public @Nullable String getGame() {
+        return this.active && this.serverSession.isOn(this.integration) ? this.game : null;
     }
 
-    public static void reset() {
-        Locraw.game = null;
-        Locraw.lastRequest = 0L;
-        Locraw.lastCountdownTrigger = 0L;
-        Locraw.lastGameStartTrigger = 0L;
-        Locraw.manual = false;
-        Locraw.autoRequest = false;
-        Locraw.active = false;
-    }
-
-    private static boolean allowGameMessage(Component message, boolean overlay) {
-        if (overlay || !Locraw.active || !BedwarsPracticeIntegration.INSTANCE.isCurrent()) {
-            return true;
-        }
-
-        var messageText = message.getString();
-        var text = ChatFormatting.stripFormatting(messageText).trim();
-
-        if (Locraw.CONNECTED.matcher(text).matches()) {
-            Locraw.game = null;
-            Locraw.lastCountdownTrigger = 0L;
-            Locraw.lastGameStartTrigger = 0L;
-            return true;
-        }
-
-        if (Locraw.GAME_STARTING.matcher(text).matches()) {
-            var now = Util.getMillis();
-
-            if (now - Locraw.lastCountdownTrigger > Locraw.COUNTDOWN_TRIGGER_INTERVAL) {
-                Locraw.lastCountdownTrigger = now;
-                Locraw.triggerUpdate(now);
-            }
-
-            return true;
-        }
-
-        if (Locraw.GAME_STARTED.matcher(text).matches()) {
-            var now = Util.getMillis();
-
-            if (now - Locraw.lastGameStartTrigger > Locraw.GAME_START_TRIGGER_INTERVAL) {
-                Locraw.lastGameStartTrigger = now;
-                Locraw.triggerUpdate(now);
-            }
-
-            return true;
-        }
-
-        var data = Locraw.parse(messageText);
-
-        if (data == null) {
-            return true;
-        }
-
-        Locraw.apply(data);
-        return Locraw.manual;
-    }
-
-    private static void onCommand(String command) {
-        if (Locraw.autoRequest || !BedwarsPracticeIntegration.INSTANCE.isCurrent()) {
-            return;
-        }
-
-        var value = command.trim();
-
-        if (value.startsWith("/")) {
-            value = value.substring(1);
-        }
-
-        if (value.equals("locraw") || value.startsWith("locraw ")) {
-            Locraw.manual = true;
-        }
-    }
-
-    private static void triggerUpdate(long now) {
-        if (Locraw.manual) {
-            return;
-        }
-
-        Locraw.lastRequest = now;
-        Locraw.request(Minecraft.getInstance());
-    }
-
-    private static void request(Minecraft client) {
-        var connection = client.getConnection();
-
-        if (connection == null) {
-            return;
-        }
-
-        Locraw.autoRequest = true;
-
-        try {
-            connection.sendCommand("locraw");
-        } catch (Exception ignored) {
-        } finally {
-            Locraw.autoRequest = false;
-        }
+    public void reset() {
+        this.game = null;
+        this.lastRequest = 0L;
+        this.lastCountdownTrigger = 0L;
+        this.lastGameStartTrigger = 0L;
+        this.manual = false;
+        this.autoRequest = false;
+        this.active = false;
     }
 
     private static @Nullable Data parse(String message) {
@@ -252,21 +169,6 @@ public final class Locraw {
         return element.getAsString();
     }
 
-    private static void apply(Data data) {
-        if (!"practice".equalsIgnoreCase(data.serverType())) {
-            Locraw.game = null;
-            return;
-        }
-
-        var name = data.gameType() != null && !data.gameType().isBlank()
-                ? Locraw.gameName(data.gameType())
-                : data.techniqueType() != null && !data.techniqueType().isBlank()
-                        ? Locraw.displayName(data.techniqueType())
-                        : null;
-
-        Locraw.game = name == null || name.isBlank() ? null : name;
-    }
-
     private static String gameName(String value) {
         var key = value.toLowerCase(Locale.ROOT)
                 .replace("_", "")
@@ -282,7 +184,7 @@ public final class Locraw {
     }
 
     private static @Nullable String closestGameName(String key) {
-        String best = null;
+        @Nullable String best = null;
         var bestDistance = 2;
 
         for (var entry : Locraw.GAME_NAMES.entrySet()) {
@@ -356,7 +258,110 @@ public final class Locraw {
         return builder.toString();
     }
 
-    private record Data(String serverType, @Nullable String gameType, @Nullable String techniqueType) {
+    private boolean allowGameMessage(Component message, boolean overlay) {
+        if (overlay || !this.active || !this.serverSession.isOn(this.integration)) {
+            return true;
+        }
 
+        var messageText = message.getString();
+        var text = ChatFormatting.stripFormatting(messageText).trim();
+
+        if (Locraw.CONNECTED.matcher(text).matches()) {
+            this.game = null;
+            this.lastCountdownTrigger = 0L;
+            this.lastGameStartTrigger = 0L;
+            return true;
+        }
+
+        if (Locraw.GAME_STARTING.matcher(text).matches()) {
+            var now = Util.getMillis();
+
+            if (now - this.lastCountdownTrigger > Locraw.COUNTDOWN_TRIGGER_INTERVAL) {
+                this.lastCountdownTrigger = now;
+                this.triggerUpdate(now);
+            }
+
+            return true;
+        }
+
+        if (Locraw.GAME_STARTED.matcher(text).matches()) {
+            var now = Util.getMillis();
+
+            if (now - this.lastGameStartTrigger > Locraw.GAME_START_TRIGGER_INTERVAL) {
+                this.lastGameStartTrigger = now;
+                this.triggerUpdate(now);
+            }
+
+            return true;
+        }
+
+        var data = Locraw.parse(messageText);
+
+        if (data == null) {
+            return true;
+        }
+
+        this.apply(data);
+        return this.manual;
+    }
+
+    private void onCommand(String command) {
+        if (this.autoRequest || !this.serverSession.isOn(this.integration)) {
+            return;
+        }
+
+        var value = command.trim();
+
+        if (value.startsWith("/")) {
+            value = value.substring(1);
+        }
+
+        if (value.equals("locraw") || value.startsWith("locraw ")) {
+            this.manual = true;
+        }
+    }
+
+    private void triggerUpdate(long now) {
+        if (this.manual) {
+            return;
+        }
+
+        this.lastRequest = now;
+        this.request();
+    }
+
+    private void request() {
+        var connection = this.client.getConnection();
+
+        if (connection == null) {
+            return;
+        }
+
+        this.autoRequest = true;
+
+        try {
+            connection.sendCommand("locraw");
+        } catch (Exception ignored) {
+        } finally {
+            this.autoRequest = false;
+        }
+    }
+
+    private void apply(Data data) {
+        if (!"practice".equalsIgnoreCase(data.serverType())) {
+            this.game = null;
+            return;
+        }
+
+        var name = data.gameType() != null && !data.gameType().isBlank()
+                ? Locraw.gameName(data.gameType())
+                : data.techniqueType() != null && !data.techniqueType().isBlank()
+                        ? Locraw.displayName(data.techniqueType())
+                        : null;
+
+        this.game = name == null || name.isBlank() ? null : name;
+    }
+
+    private record Data(String serverType, @Nullable String gameType, @Nullable String techniqueType) {
     }
 }

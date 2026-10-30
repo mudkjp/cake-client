@@ -1,7 +1,9 @@
 package dev.mudkip.cake.mixin;
 
+import dev.mudkip.cake.MinecraftClientAccess;
 import dev.mudkip.cake.module.PacketComponentAccess;
 import dev.mudkip.cake.module.modules.FingerprintModule;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.KeybindContents;
 import org.spongepowered.asm.mixin.Final;
@@ -23,8 +25,10 @@ public abstract class FingerprintKeybindMixin implements PacketComponentAccess {
 
     @Inject(method = "getNestedComponent", at = @At("HEAD"), cancellable = true)
     private void cake$hideKeybind(CallbackInfoReturnable<Component> callbackInfo) {
-        if (this.cake$fromPacket && FingerprintModule.shouldHideKeybinds()) {
-            callbackInfo.setReturnValue(FingerprintModule.spoofKeybind(this.name));
+        var module = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getActiveModule(FingerprintModule.class);
+
+        if (this.cake$fromPacket && module != null && module.shouldHideKeybinds()) {
+            callbackInfo.setReturnValue(module.spoofKeybind(this.name));
         }
     }
 

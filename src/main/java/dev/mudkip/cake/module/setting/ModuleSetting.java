@@ -11,8 +11,8 @@ public abstract class ModuleSetting<T> {
     private final Component name;
     private final Component description;
     private final T defaultValue;
+    private T value;
     private Runnable changeListener;
-    protected T value;
 
     protected ModuleSetting(String id, Component name, Component description, T defaultValue) {
         this.id = id;
@@ -20,7 +20,7 @@ public abstract class ModuleSetting<T> {
         this.description = description;
         this.defaultValue = defaultValue;
         this.value = defaultValue;
-        this.changeListener = () -> {};
+        this.changeListener = () -> { };
     }
 
     public String getId() {
@@ -44,16 +44,22 @@ public abstract class ModuleSetting<T> {
     }
 
     public void setValue(T value) {
-        if (Objects.equals(this.value, value)) {
+        var sanitized = this.sanitize(value);
+
+        if (Objects.equals(this.value, sanitized)) {
             return;
         }
 
-        this.value = value;
+        this.value = sanitized;
         this.changeListener.run();
     }
 
     public void reset() {
         this.setValue(this.defaultValue);
+    }
+
+    public void setChangeListener(Runnable changeListener) {
+        this.changeListener = changeListener;
     }
 
     public abstract UIComponent createControl();
@@ -62,7 +68,11 @@ public abstract class ModuleSetting<T> {
 
     public abstract void fromJson(JsonElement json);
 
-    public void setChangeListener(Runnable changeListener) {
-        this.changeListener = changeListener;
+    protected T sanitize(T value) {
+        return value;
+    }
+
+    protected void setInitialValue(T value) {
+        this.value = value;
     }
 }

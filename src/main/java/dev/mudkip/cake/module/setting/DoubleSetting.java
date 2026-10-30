@@ -17,18 +17,22 @@ public final class DoubleSetting extends ModuleSetting<Double> {
     private final double step;
     private final String suffix;
 
-    public DoubleSetting(String id, Component name, Component description, double min, double max, double step, double defaultValue, String suffix) {
+    public DoubleSetting(
+            String id,
+            Component name,
+            Component description,
+            double min,
+            double max,
+            double step,
+            double defaultValue,
+            String suffix
+    ) {
         super(id, name, description, defaultValue);
         this.min = min;
         this.max = max;
         this.step = step;
         this.suffix = suffix;
-        this.value = this.clamp(defaultValue);
-    }
-
-    @Override
-    public void setValue(Double value) {
-        super.setValue(this.clamp(value));
+        this.setInitialValue(this.clamp(defaultValue));
     }
 
     @Override
@@ -55,6 +59,11 @@ public final class DoubleSetting extends ModuleSetting<Double> {
         if (json.isJsonPrimitive() && json.getAsJsonPrimitive().isNumber()) {
             this.setValue(json.getAsDouble());
         }
+    }
+
+    @Override
+    protected Double sanitize(Double value) {
+        return this.clamp(value);
     }
 
     private double clamp(double value) {

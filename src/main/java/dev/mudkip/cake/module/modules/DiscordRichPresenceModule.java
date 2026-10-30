@@ -1,23 +1,20 @@
 package dev.mudkip.cake.module.modules;
 
 import dev.mudkip.cake.discord.DiscordRpc;
-import dev.mudkip.cake.discord.ServerMappings;
-import dev.mudkip.cake.discord.ServerMappings.Mapping;
 import dev.mudkip.cake.module.ClientModule;
 import dev.mudkip.cake.module.ModuleCategory;
+import dev.mudkip.cake.module.ModuleContext;
+import dev.mudkip.cake.module.ModuleDefinition;
 import dev.mudkip.cake.module.setting.BooleanSetting;
-import dev.mudkip.cake.server.BedwarsPracticeIntegration;
 import dev.mudkip.cake.server.Locraw;
+import dev.mudkip.cake.server.ServerIntegrations;
+import dev.mudkip.cake.server.ServerMappings;
+import dev.mudkip.cake.server.ServerMappings.Mapping;
 import fun.crashsystem.jdrpc.activity.Activity;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.SharedConstants;
-import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
 
 public final class DiscordRichPresenceModule extends ClientModule {
-    private static final Identifier ICON = Identifier.fromNamespaceAndPath("cake", "textures/gui/icons/discordrichpresence.png");
     private static final long APPLICATION_ID = 1565545232320299088L;
     private static final String LARGE_IMAGE = "cake";
     private static final String LARGE_IMAGE_TEXT = "Cake Client";
@@ -25,58 +22,48 @@ public final class DiscordRichPresenceModule extends ClientModule {
 
     private final BooleanSetting showServer;
     private final DiscordRpc rpc;
+    private final Locraw locraw;
+    private final ServerMappings serverMappings;
     private long startTime;
 
-    public DiscordRichPresenceModule() {
-        super(
-                "discordrichpresence",
-                Component.translatable("cake.module.discordrichpresence.name"),
-                Component.translatable("cake.module.discordrichpresence.description"),
-                ModuleCategory.MISC,
-                DiscordRichPresenceModule.ICON
-        );
-        this.showServer = this.setting(new BooleanSetting(
-                "show_server",
-                Component.translatable("cake.setting.discordrichpresence.show_server.name"),
-                Component.translatable("cake.setting.discordrichpresence.show_server.description"),
-                false
-        ));
+    public DiscordRichPresenceModule(ModuleContext context) {
+        super(ModuleDefinition.of("discordrichpresence", ModuleCategory.MISC), context);
+        this.showServer = this.booleanSetting("show_server", false);
         this.rpc = new DiscordRpc(DiscordRichPresenceModule.APPLICATION_ID);
-        ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+        this.locraw = new Locraw(context.client(), context.serverSession(), ServerIntegrations.BEDWARS_PRACTICE);
+        this.locraw.register();
+        this.serverMappings = context.serverMappings();
     }
 
     @Override
-    public void onEnable() {
+    protected void onEnable() {
         this.startTime = System.currentTimeMillis() / 1000L;
-        Locraw.reset();
+        this.locraw.reset();
         this.rpc.start();
     }
 
     @Override
-    public void onDisable() {
-        Locraw.reset();
+    protected void onDisable() {
+        this.locraw.reset();
         this.rpc.stop();
     }
 
-    private void onClientTick(Minecraft client) {
-        if (!this.isEnabled()) {
-            return;
-        }
-
-        Locraw.tick(client, this.showServer.getValue());
+    @Override
+    protected void onTick() {
+        this.locraw.tick(this.showServer.getValue());
 
         if (this.showServer.getValue()) {
-            ServerMappings.ensureLoaded();
+            this.serverMappings.ensureLoaded();
         }
 
-        this.rpc.update(this.createActivity(client));
+        this.rpc.update(this.createActivity());
     }
 
-    private Activity createActivity(Minecraft client) {
-        var server = this.getServerContext(client);
-        var game = server == null ? null : Locraw.getGame();
+    private Activity createActivity() {
+        var server = this.getServerContext();
+        var game = server == null ? null : this.locraw.getGame();
         var builder = new Activity.Builder()
-                .setDetails(this.getDetails(client, server))
+                .setDetails(this.getDetails(server))
                 .setState(this.getState(server, game))
                 .setStartTimestamp(this.startTime)
                 .setLargeImage(DiscordRichPresenceModule.LARGE_IMAGE, this.getLargeImageText(server));
@@ -88,21 +75,23 @@ public final class DiscordRichPresenceModule extends ClientModule {
         return builder.build();
     }
 
-    private @Nullable ServerContext getServerContext(Minecraft client) {
-        if (!this.showServer.getValue() || client.level == null || client.hasSingleplayerServer()) {
+    private @Nullable ServerContext getServerContext() {
+        if (!this.showServer.getValue() || this.client.level == null || this.client.hasSingleplayerServer()) {
             return null;
         }
 
-        var server = client.getCurrentServer();
+        var server = this.client.getCurrentServer();
 
         if (server == null || server.isRealm() || server.ip == null || server.ip.isBlank()) {
             return null;
         }
 
-        var mapping = ServerMappings.lookup(server.ip);
+        var mapping = this.serverMappings.lookup(server.ip);
         var name = mapping != null
                 ? mapping.name()
-                : BedwarsPracticeIntegration.INSTANCE.isCurrent() ? BedwarsPracticeIntegration.INSTANCE.getName() : null;
+                : this.serverSession.isOn(ServerIntegrations.BEDWARS_PRACTICE)
+                        ? ServerIntegrations.BEDWARS_PRACTICE.name()
+                        : null;
 
         if (name == null) {
             return null;
@@ -111,16 +100,16 @@ public final class DiscordRichPresenceModule extends ClientModule {
         return new ServerContext(name, server.ip, mapping);
     }
 
-    private String getDetails(Minecraft client, @Nullable ServerContext server) {
-        if (client.level == null) {
+    private String getDetails(@Nullable ServerContext server) {
+        if (this.client.level == null) {
             return "In the menus";
         }
 
-        if (client.hasSingleplayerServer()) {
+        if (this.client.hasSingleplayerServer()) {
             return "Playing Singleplayer";
         }
 
-        var current = client.getCurrentServer();
+        var current = this.client.getCurrentServer();
 
         if (current == null) {
             return "Playing Multiplayer";
@@ -158,6 +147,5 @@ public final class DiscordRichPresenceModule extends ClientModule {
     }
 
     private record ServerContext(String name, String address, @Nullable Mapping mapping) {
-
     }
 }

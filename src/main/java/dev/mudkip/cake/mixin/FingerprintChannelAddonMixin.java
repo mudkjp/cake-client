@@ -1,9 +1,11 @@
 package dev.mudkip.cake.mixin;
 
+import dev.mudkip.cake.MinecraftClientAccess;
 import dev.mudkip.cake.module.modules.FingerprintModule;
 import net.fabricmc.fabric.impl.networking.AbstractChanneledNetworkAddon;
 import net.fabricmc.fabric.impl.networking.client.ClientConfigurationNetworkAddon;
 import net.fabricmc.fabric.impl.networking.client.ClientPlayNetworkAddon;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -24,7 +26,9 @@ public abstract class FingerprintChannelAddonMixin {
             return;
         }
 
-        if (FingerprintModule.shouldDropInboundChannel(payload.type().id())) {
+        var module = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getActiveModule(FingerprintModule.class);
+
+        if (module != null && module.shouldDropInboundChannel(payload.type().id())) {
             callbackInfo.setReturnValue(false);
         }
     }

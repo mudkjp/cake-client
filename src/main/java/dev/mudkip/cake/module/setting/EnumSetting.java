@@ -13,12 +13,19 @@ import net.minecraft.network.chat.Component;
 import java.util.function.Function;
 
 public final class EnumSetting<E extends Enum<E>> extends ModuleSetting<E> {
-    private final Class<E> type;
+    private final Class<E> enumType;
     private final Function<E, Component> formatter;
 
-    public EnumSetting(String id, Component name, Component description, Class<E> type, Function<E, Component> formatter, E defaultValue) {
+    public EnumSetting(
+            String id,
+            Component name,
+            Component description,
+            Class<E> type,
+            Function<E, Component> formatter,
+            E defaultValue
+    ) {
         super(id, name, description, defaultValue);
-        this.type = type;
+        this.enumType = type;
         this.formatter = formatter;
     }
 
@@ -41,17 +48,18 @@ public final class EnumSetting<E extends Enum<E>> extends ModuleSetting<E> {
 
     @Override
     public void fromJson(JsonElement json) {
-        if (json.isJsonPrimitive() && json.getAsJsonPrimitive().isString()) {
-            try {
-                this.setValue(Enum.valueOf(this.type, json.getAsString()));
-            } catch (IllegalArgumentException exception) {
-                return;
-            }
+        if (!json.isJsonPrimitive() || !json.getAsJsonPrimitive().isString()) {
+            return;
+        }
+
+        try {
+            this.setValue(Enum.valueOf(this.enumType, json.getAsString()));
+        } catch (IllegalArgumentException ignored) {
         }
     }
 
     private void cycle(ButtonComponent button) {
-        var constants = this.type.getEnumConstants();
+        var constants = this.enumType.getEnumConstants();
         var next = constants[(this.getValue().ordinal() + 1) % constants.length];
         this.setValue(next);
         button.setMessage(this.formatter.apply(next));

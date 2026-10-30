@@ -4,23 +4,19 @@ import net.minecraft.client.Minecraft;
 import org.jspecify.annotations.Nullable;
 
 public final class ServerSession {
-    private static volatile @Nullable String address;
+    private volatile @Nullable String address;
 
-    private ServerSession() {
-
-    }
-
-    public static void update(Minecraft client) {
+    public void update(Minecraft client) {
         var current = ServerSession.resolve(client);
-        ServerSession.address = current == null ? null : ServerIntegration.normalize(current);
+        this.address = current == null ? null : ServerAddresses.normalize(current);
     }
 
-    public static @Nullable String getAddress() {
-        return ServerSession.address;
+    public @Nullable String getAddress() {
+        return this.address;
     }
 
-    static boolean isOn(ServerIntegration integration) {
-        var current = ServerSession.address;
+    public boolean isOn(ServerIntegration integration) {
+        var current = this.address;
         return current != null && integration.matches(current);
     }
 

@@ -10,7 +10,12 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.container.UIContainers;
-import io.wispforest.owo.ui.core.*;
+import io.wispforest.owo.ui.core.Color;
+import io.wispforest.owo.ui.core.HorizontalAlignment;
+import io.wispforest.owo.ui.core.Insets;
+import io.wispforest.owo.ui.core.Sizing;
+import io.wispforest.owo.ui.core.Surface;
+import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
@@ -20,15 +25,17 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
     private static final int PANEL_MAX_WIDTH = 460;
     private static final int PANEL_MAX_HEIGHT = 420;
 
+    private final ModuleManager modules;
     private final ClientModule module;
-    private ButtonComponent enabledButton;
-    private ButtonComponent keyButton;
+    private @Nullable ButtonComponent enabledButton;
+    private @Nullable ButtonComponent keyButton;
     private @Nullable LabelComponent serverLabel;
-    private LabelComponent conflictLabel;
+    private @Nullable LabelComponent conflictLabel;
     private boolean capturingKey;
 
-    public ModuleDetailsScreen(ClientModule module) {
+    public ModuleDetailsScreen(ModuleManager modules, ClientModule module) {
         super(module.getName());
+        this.modules = modules;
         this.module = module;
     }
 
@@ -37,8 +44,8 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
         root.surface(Surface.BLANK);
         root.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
 
-        var width = Math.min(PANEL_MAX_WIDTH, Math.max(1, this.width - 32));
-        var height = Math.min(PANEL_MAX_HEIGHT, Math.max(1, this.height - 32));
+        var width = Math.min(ModuleDetailsScreen.PANEL_MAX_WIDTH, Math.max(1, this.width - 32));
+        var height = Math.min(ModuleDetailsScreen.PANEL_MAX_HEIGHT, Math.max(1, this.height - 32));
 
         var panel = UIContainers.verticalFlow(Sizing.fixed(width), Sizing.fixed(height))
                 .gap(8);
@@ -75,15 +82,15 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
             panel.child(this.serverLabel);
         }
 
-        this.enabledButton = ModuleWidgets.enabledButton(this.module, () -> {
-        });
-        this.enabledButton.horizontalSizing(Sizing.fill(100));
-        panel.child(this.enabledButton);
+        var enabledButton = ModuleWidgets.createEnabledButton(this.module, () -> { });
+        enabledButton.horizontalSizing(Sizing.fill(100));
+        panel.child(enabledButton);
+        this.enabledButton = enabledButton;
 
-        if (this.module instanceof HudModule) {
+        if (this.module instanceof HudModule hudModule) {
             var editHud = UIComponents.button(
                     Component.translatable("cake.menu.edit_hud"),
-                    button -> this.minecraft.gui.setScreen(new HudEditorScreen(this, (HudModule) this.module))
+                    button -> this.minecraft.gui.setScreen(new HudEditorScreen(this.modules, this, hudModule))
             );
             editHud.renderer(UiStyles.SECONDARY_BUTTON);
             editHud.textShadow(false);
@@ -170,14 +177,9 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
-
-    @Override
     public void onClose() {
-        ModuleManager.get().saveIfDirty();
-        this.minecraft.gui.setScreen(new ModMenuScreen());
+        this.modules.saveIfDirty();
+        this.minecraft.gui.setScreen(new ModMenuScreen(this.modules));
     }
 
     private Component keyLabel() {
@@ -219,7 +221,7 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
         var available = this.module.isAvailable();
         this.serverLabel.text(Component.translatable(
                 available ? "cake.menu.server_only" : "cake.menu.server_unavailable",
-                integration.getName()
+                integration.name()
         ));
         this.serverLabel.color(Color.ofArgb(available ? UiStyles.SERVER_ACCENT : UiStyles.MUTED_TEXT));
     }

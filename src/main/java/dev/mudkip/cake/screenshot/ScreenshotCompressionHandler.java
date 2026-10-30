@@ -2,7 +2,6 @@ package dev.mudkip.cake.screenshot;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
-import dev.mudkip.cake.CakeClient;
 import dev.mudkip.compresso.core.v1.CompressionOptions;
 import dev.mudkip.compresso.core.v1.ScreenshotWriter;
 import net.minecraft.ChatFormatting;
@@ -12,6 +11,8 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -19,11 +20,12 @@ import java.util.Locale;
 import java.util.function.Consumer;
 
 public final class ScreenshotCompressionHandler {
-    private ScreenshotCompressionHandler() {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ScreenshotCompressionHandler.class);
 
+    private ScreenshotCompressionHandler() {
     }
 
-    public static void grab(File workingDirectory, @Nullable String forceName, RenderTarget target, int downscaleFactor, CompressionOptions options, Consumer<Component> callback) {
+    public static void grab(Minecraft client, File workingDirectory, @Nullable String forceName, RenderTarget target, int downscaleFactor, CompressionOptions options, Consumer<Component> callback) {
         Screenshot.takeScreenshot(target, downscaleFactor, nativeImage -> {
             BufferedImage image;
 
@@ -31,7 +33,7 @@ public final class ScreenshotCompressionHandler {
                 image = ScreenshotCompressionHandler.toBufferedImage(nativeImage);
             }
 
-            var window = Minecraft.getInstance().getWindow();
+            var window = client.getWindow();
             var screenWidth = window.getScreenWidth();
             var screenHeight = window.getScreenHeight();
             Util.ioPool().execute(() -> ScreenshotCompressionHandler.process(workingDirectory, forceName, image, screenWidth, screenHeight, options, callback));
@@ -43,13 +45,13 @@ public final class ScreenshotCompressionHandler {
             var saved = ScreenshotWriter.write(source, workingDirectory.toPath(), forceName, screenWidth, screenHeight, Util.getFilenameFormattedDateTime(), options);
 
             if (saved.fallbackCause() != null) {
-                CakeClient.LOGGER.warn("Screenshot encoder failed for {}, falling back to PNG", options.format(), saved.fallbackCause());
+                LOGGER.warn("Screenshot encoder failed for {}, falling back to PNG", options.format(), saved.fallbackCause());
             }
 
-            CakeClient.LOGGER.info("Saved screenshot {} ({} bytes, {})", saved.path().getFileName(), saved.bytes(), saved.backend());
+            LOGGER.info("Saved screenshot {} ({} bytes, {})", saved.path().getFileName(), saved.bytes(), saved.backend());
             callback.accept(ScreenshotCompressionHandler.savedMessage(saved.path().toFile(), saved.bytes()));
         } catch (Throwable throwable) {
-            CakeClient.LOGGER.error("Failed to save compressed screenshot", throwable);
+            LOGGER.error("Failed to save compressed screenshot", throwable);
             callback.accept(Component.translatable("screenshot.failure", String.valueOf(throwable.getMessage())));
         }
     }
@@ -78,9 +80,9 @@ public final class ScreenshotCompressionHandler {
         }
 
         if (bytes < 1024 * 1024) {
-            return String.format(Locale.ROOT, "%.1f KiB", bytes / 1024.0);
+            return String.format(Locale.ROOT, "%.1f KiB", bytes / 1024.0D);
         }
 
-        return String.format(Locale.ROOT, "%.2f MiB", bytes / (1024.0 * 1024.0));
+        return String.format(Locale.ROOT, "%.2f MiB", bytes / (1024.0D * 1024.0D));
     }
 }

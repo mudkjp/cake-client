@@ -4,14 +4,9 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
-public final class ServerIntegration {
-    private final String id;
-    private final String name;
-    private final List<String> addresses;
-
-    public ServerIntegration(String id, String name, String... addresses) {
+public record ServerIntegration(String id, String name, List<String> addresses) {
+    public ServerIntegration {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Server integration id cannot be blank");
         }
@@ -20,33 +15,19 @@ public final class ServerIntegration {
             throw new IllegalArgumentException("Server integration " + id + " needs a name");
         }
 
-        if (addresses.length == 0) {
+        if (addresses == null || addresses.isEmpty()) {
             throw new IllegalArgumentException("Server integration " + id + " needs at least one address");
         }
 
-        this.id = id;
-        this.name = name;
-        this.addresses = ServerIntegration.normalizeAll(id, addresses);
+        addresses = normalizeAll(id, addresses);
     }
 
-    public String getId() {
-        return this.id;
+    public static ServerIntegration of(String id, String name, String... addresses) {
+        return new ServerIntegration(id, name, List.of(addresses));
     }
 
-    public String getName() {
-        return this.name;
-    }
-
-    public List<String> getAddresses() {
-        return this.addresses;
-    }
-
-    public boolean isCurrent() {
-        return ServerSession.isOn(this);
-    }
-
-    public boolean matches(String address) {
-        var host = ServerIntegration.normalize(address);
+    public boolean matches(@Nullable String address) {
+        var host = ServerAddresses.normalize(address);
 
         if (host == null) {
             return false;
@@ -61,43 +42,11 @@ public final class ServerIntegration {
         return false;
     }
 
-    static @Nullable String normalize(String address) {
-        if (address == null) {
-            return null;
-        }
-
-        var value = address.trim().toLowerCase(Locale.ROOT);
-
-        if (value.startsWith("*.")) {
-            value = value.substring(2);
-        }
-
-        if (value.isEmpty() || value.startsWith("[")) {
-            return null;
-        }
-
-        var colon = value.indexOf(':');
-
-        if (colon >= 0) {
-            if (colon != value.lastIndexOf(':')) {
-                return null;
-            }
-
-            value = value.substring(0, colon);
-        }
-
-        while (value.endsWith(".")) {
-            value = value.substring(0, value.length() - 1);
-        }
-
-        return value.isEmpty() ? null : value;
-    }
-
-    private static List<String> normalizeAll(String id, String[] addresses) {
-        var normalized = new ArrayList<String>(addresses.length);
+    private static List<String> normalizeAll(String id, List<String> addresses) {
+        var normalized = new ArrayList<String>(addresses.size());
 
         for (var address : addresses) {
-            var host = ServerIntegration.normalize(address);
+            var host = ServerAddresses.normalize(address);
 
             if (host == null) {
                 throw new IllegalArgumentException("Invalid address for server integration " + id + ": " + address);

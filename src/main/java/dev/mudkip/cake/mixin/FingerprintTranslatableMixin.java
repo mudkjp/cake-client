@@ -2,8 +2,10 @@ package dev.mudkip.cake.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import dev.mudkip.cake.MinecraftClientAccess;
 import dev.mudkip.cake.module.PacketComponentAccess;
 import dev.mudkip.cake.module.modules.FingerprintModule;
+import net.minecraft.client.Minecraft;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,7 +25,8 @@ public abstract class FingerprintTranslatableMixin implements PacketComponentAcc
             )
     )
     private String cake$hideTranslation(Language language, String key, Operation<String> original) {
-        return FingerprintModule.shouldHideTranslation(this.cake$fromPacket, key) ? key : original.call(language, key);
+        var module = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getActiveModule(FingerprintModule.class);
+        return module != null && module.shouldHideTranslation(this.cake$fromPacket, key) ? key : original.call(language, key);
     }
 
     @WrapOperation(
@@ -34,7 +37,8 @@ public abstract class FingerprintTranslatableMixin implements PacketComponentAcc
             )
     )
     private String cake$hideTranslationWithFallback(Language language, String key, String fallback, Operation<String> original) {
-        return FingerprintModule.shouldHideTranslation(this.cake$fromPacket, key)
+        var module = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getActiveModule(FingerprintModule.class);
+        return module != null && module.shouldHideTranslation(this.cake$fromPacket, key)
                 ? fallback
                 : original.call(language, key, fallback);
     }

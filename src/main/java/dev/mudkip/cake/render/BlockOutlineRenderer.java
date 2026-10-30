@@ -32,9 +32,9 @@ public final class BlockOutlineRenderer {
         }
 
         var camera = levelRenderState.cameraRenderState.pos;
-        var pos = state.pos();
+        var blockPosition = state.pos();
         poseStack.pushPose();
-        poseStack.translate((double) pos.getX() - camera.x, (double) pos.getY() - camera.y, (double) pos.getZ() - camera.z);
+        poseStack.translate((double) blockPosition.getX() - camera.x, (double) blockPosition.getY() - camera.y, (double) blockPosition.getZ() - camera.z);
 
         if (overlay) {
             BlockOutlineRenderer.submitOverlay(
@@ -42,9 +42,9 @@ public final class BlockOutlineRenderer {
                     submitNodeCollector,
                     state,
                     overlayColor,
-                    camera.x - pos.getX(),
-                    camera.y - pos.getY(),
-                    camera.z - pos.getZ()
+                    camera.x - blockPosition.getX(),
+                    camera.y - blockPosition.getY(),
+                    camera.z - blockPosition.getZ()
             );
         }
 

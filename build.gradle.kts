@@ -62,8 +62,8 @@ dependencies {
     implementation("io.wispforest:owo-lib:0.13.1+26.3")
     include("io.wispforest:owo-lib:0.13.1+26.3")
 
-    implementation("com.github.CrashSystemZ:jDRPC:v1.0.0")
-    include("com.github.CrashSystemZ:jDRPC:v1.0.0")
+    implementation("com.github.CrashSystemZ:jDRPC:1.0.0")
+    include("com.github.CrashSystemZ:jDRPC:1.0.0")
 
     implementation("dev.mudkip:compresso-core:1.1.0")
     implementation("com.github.usefulness:webp-imageio:0.11.0")
@@ -75,7 +75,7 @@ dependencies {
 
 loom {
     runConfigs.configureEach {
-        ideConfigGenerated(true)
+        generateRunConfig.set(true)
         environmentVars.put("GDK_BACKEND", "wayland")
     }
 }
@@ -112,6 +112,14 @@ tasks.processResources {
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.release = javaVersion
+    options.compilerArgs.addAll(
+        listOf(
+            "-Xlint:all",
+            "-Xlint:-classfile",
+            "-Xlint:-processing",
+            "-Xlint:-serial"
+        )
+    )
 }
 
 tasks.jar {

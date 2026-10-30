@@ -2,11 +2,9 @@ package dev.mudkip.cake.module.modules;
 
 import com.google.gson.JsonObject;
 import dev.mudkip.cake.module.ClientModule;
-import dev.mudkip.cake.module.ModuleCategory;
-import dev.mudkip.cake.server.ServerIntegration;
-import net.minecraft.client.Minecraft;
+import dev.mudkip.cake.module.ModuleContext;
+import dev.mudkip.cake.module.ModuleDefinition;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 
 public abstract class HudModule extends ClientModule {
     public static final double MIN_SCALE = 0.5D;
@@ -20,12 +18,14 @@ public abstract class HudModule extends ClientModule {
     private double offsetY;
     private double scale;
 
-    protected HudModule(String id, Component name, Component description, ModuleCategory category, Identifier icon, Anchor anchor, double offsetX, double offsetY) {
-        this(id, name, description, category, icon, null, anchor, offsetX, offsetY);
-    }
-
-    protected HudModule(String id, Component name, Component description, ModuleCategory category, Identifier icon, ServerIntegration integration, Anchor anchor, double offsetX, double offsetY) {
-        super(id, name, description, category, icon, integration);
+    protected HudModule(
+            ModuleDefinition definition,
+            ModuleContext context,
+            Anchor anchor,
+            double offsetX,
+            double offsetY
+    ) {
+        super(definition, context);
         this.defaultAnchor = anchor;
         this.defaultOffsetX = offsetX;
         this.defaultOffsetY = offsetY;
@@ -38,7 +38,7 @@ public abstract class HudModule extends ClientModule {
     public abstract String getText();
 
     public int getTextWidth() {
-        return Minecraft.getInstance().font.width(this.getText());
+        return this.client.font.width(this.getText());
     }
 
     public int getWidth() {
@@ -46,7 +46,7 @@ public abstract class HudModule extends ClientModule {
     }
 
     public int getHeight() {
-        return Math.max(1, (int) Math.round(Minecraft.getInstance().font.lineHeight * this.scale));
+        return Math.max(1, (int) Math.round(this.client.font.lineHeight * this.scale));
     }
 
     public double getX(int screenWidth) {
@@ -101,7 +101,7 @@ public abstract class HudModule extends ClientModule {
     }
 
     @Override
-    public JsonObject toJson() {
+    protected JsonObject toJson() {
         var json = super.toJson();
         var hud = new JsonObject();
         hud.addProperty("anchor", this.anchor.name());
@@ -113,7 +113,7 @@ public abstract class HudModule extends ClientModule {
     }
 
     @Override
-    public void fromJson(JsonObject json) {
+    protected void fromJson(JsonObject json) {
         super.fromJson(json);
 
         var hud = json.getAsJsonObject("hud");

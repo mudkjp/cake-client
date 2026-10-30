@@ -3,7 +3,10 @@ package dev.mudkip.cake.mixin;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.serialization.Codec;
+import dev.mudkip.cake.MinecraftClientAccess;
 import dev.mudkip.cake.module.PacketComponentCodec;
+import dev.mudkip.cake.module.modules.FingerprintModule;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,6 +24,15 @@ public abstract class FingerprintSerializationMixin {
             )
     )
     private static Codec<Component> cake$wrapComponentCodec(String name, Function<Codec<Component>, Codec<Component>> body, Operation<Codec<Component>> original) {
-        return new PacketComponentCodec(original.call(name, body));
+        return new PacketComponentCodec(original.call(name, body), () -> {
+            var minecraft = Minecraft.getInstance();
+
+            if (minecraft == null) {
+                return false;
+            }
+
+            var module = ((MinecraftClientAccess) minecraft).cake$getActiveModule(FingerprintModule.class);
+            return module != null && module.shouldMarkPackets();
+        });
     }
 }

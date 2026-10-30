@@ -2,6 +2,8 @@ package dev.mudkip.cake.module.modules;
 
 import dev.mudkip.cake.module.ClientModule;
 import dev.mudkip.cake.module.ModuleCategory;
+import dev.mudkip.cake.module.ModuleContext;
+import dev.mudkip.cake.module.ModuleDefinition;
 import dev.mudkip.cake.module.setting.BooleanSetting;
 import dev.mudkip.cake.module.setting.EnumSetting;
 import dev.mudkip.cake.module.setting.IntSetting;
@@ -10,134 +12,51 @@ import dev.mudkip.compresso.core.v1.CompressionMode;
 import dev.mudkip.compresso.core.v1.CompressionOptions;
 import dev.mudkip.compresso.core.v1.ImageFormat;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 
 public final class ScreenshotCompressionModule extends ClientModule {
-    private static final Identifier ICON = Identifier.fromNamespaceAndPath("cake", "textures/gui/icons/screenshotcompression.png");
+    private final EnumSetting<ImageFormat> format;
+    private final EnumSetting<CompressionMode> mode;
+    private final IntSetting quality;
+    private final BooleanSetting matchWindowResolution;
+    private final IntSetting pngLevel;
+    private final IntSetting webpMethod;
+    private final IntSetting avifSpeed;
+    private final IntSetting jxlEffort;
+    private final BooleanSetting useExternalEncoders;
+    private final BooleanSetting preferExternalWhenAvailable;
+    private final StringSetting avifEncoder;
+    private final StringSetting webpEncoder;
+    private final StringSetting pngOptimizer;
+    private final StringSetting jpegEncoder;
+    private final StringSetting jxlEncoder;
 
-    private final EnumSetting<ImageFormat> format = this.setting(new EnumSetting<>(
-            "format",
-            Component.translatable("cake.setting.screenshotcompression.format.name"),
-            Component.translatable("cake.setting.screenshotcompression.format.description"),
-            ImageFormat.class,
-            value -> Component.literal(value.getDisplayName()),
-            ImageFormat.WEBP
-    ));
-    private final EnumSetting<CompressionMode> mode = this.setting(new EnumSetting<>(
-            "mode",
-            Component.translatable("cake.setting.screenshotcompression.mode.name"),
-            Component.translatable("cake.setting.screenshotcompression.mode.description"),
-            CompressionMode.class,
-            ScreenshotCompressionModule::modeName,
-            CompressionMode.LOSSLESS
-    ));
-    private final IntSetting quality = this.setting(new IntSetting(
-            "quality",
-            Component.translatable("cake.setting.screenshotcompression.quality.name"),
-            Component.translatable("cake.setting.screenshotcompression.quality.description"),
-            0,
-            100,
-            85,
-            "%"
-    ));
-    private final BooleanSetting matchWindowResolution = this.setting(new BooleanSetting(
-            "match_window",
-            Component.translatable("cake.setting.screenshotcompression.match_window.name"),
-            Component.translatable("cake.setting.screenshotcompression.match_window.description"),
-            true
-    ));
-    private final IntSetting pngLevel = this.setting(new IntSetting(
-            "png_level",
-            Component.translatable("cake.setting.screenshotcompression.png_level.name"),
-            Component.translatable("cake.setting.screenshotcompression.png_level.description"),
-            0,
-            9,
-            9,
-            ""
-    ));
-    private final IntSetting webpMethod = this.setting(new IntSetting(
-            "webp_method",
-            Component.translatable("cake.setting.screenshotcompression.webp_method.name"),
-            Component.translatable("cake.setting.screenshotcompression.webp_method.description"),
-            0,
-            6,
-            4,
-            ""
-    ));
-    private final IntSetting avifSpeed = this.setting(new IntSetting(
-            "avif_speed",
-            Component.translatable("cake.setting.screenshotcompression.avif_speed.name"),
-            Component.translatable("cake.setting.screenshotcompression.avif_speed.description"),
-            0,
-            10,
-            6,
-            ""
-    ));
-    private final IntSetting jxlEffort = this.setting(new IntSetting(
-            "jxl_effort",
-            Component.translatable("cake.setting.screenshotcompression.jxl_effort.name"),
-            Component.translatable("cake.setting.screenshotcompression.jxl_effort.description"),
-            1,
-            10,
-            7,
-            ""
-    ));
-    private final BooleanSetting useExternalEncoders = this.setting(new BooleanSetting(
-            "use_external",
-            Component.translatable("cake.setting.screenshotcompression.use_external.name"),
-            Component.translatable("cake.setting.screenshotcompression.use_external.description"),
-            false
-    ));
-    private final BooleanSetting preferExternalWhenAvailable = this.setting(new BooleanSetting(
-            "prefer_external",
-            Component.translatable("cake.setting.screenshotcompression.prefer_external.name"),
-            Component.translatable("cake.setting.screenshotcompression.prefer_external.description"),
-            false
-    ));
-    private final StringSetting avifEncoder = this.setting(new StringSetting(
-            "avif_encoder",
-            Component.translatable("cake.setting.screenshotcompression.avif_encoder.name"),
-            Component.translatable("cake.setting.screenshotcompression.avif_encoder.description"),
-            "avifenc",
-            256
-    ));
-    private final StringSetting webpEncoder = this.setting(new StringSetting(
-            "webp_encoder",
-            Component.translatable("cake.setting.screenshotcompression.webp_encoder.name"),
-            Component.translatable("cake.setting.screenshotcompression.webp_encoder.description"),
-            "cwebp",
-            256
-    ));
-    private final StringSetting pngOptimizer = this.setting(new StringSetting(
-            "png_optimizer",
-            Component.translatable("cake.setting.screenshotcompression.png_optimizer.name"),
-            Component.translatable("cake.setting.screenshotcompression.png_optimizer.description"),
-            "oxipng",
-            256
-    ));
-    private final StringSetting jpegEncoder = this.setting(new StringSetting(
-            "jpeg_encoder",
-            Component.translatable("cake.setting.screenshotcompression.jpeg_encoder.name"),
-            Component.translatable("cake.setting.screenshotcompression.jpeg_encoder.description"),
-            "cjpeg",
-            256
-    ));
-    private final StringSetting jxlEncoder = this.setting(new StringSetting(
-            "jxl_encoder",
-            Component.translatable("cake.setting.screenshotcompression.jxl_encoder.name"),
-            Component.translatable("cake.setting.screenshotcompression.jxl_encoder.description"),
-            "cjxl",
-            256
-    ));
-
-    public ScreenshotCompressionModule() {
-        super(
-                "screenshotcompression",
-                Component.translatable("cake.module.screenshotcompression.name"),
-                Component.translatable("cake.module.screenshotcompression.description"),
-                ModuleCategory.MISC,
-                ScreenshotCompressionModule.ICON
+    public ScreenshotCompressionModule(ModuleContext context) {
+        super(ModuleDefinition.of("screenshotcompression", ModuleCategory.MISC), context);
+        this.format = this.enumSetting(
+                "format",
+                ImageFormat.class,
+                value -> Component.literal(value.getDisplayName()),
+                ImageFormat.WEBP
         );
+        this.mode = this.enumSetting(
+                "mode",
+                CompressionMode.class,
+                ScreenshotCompressionModule::modeName,
+                CompressionMode.LOSSLESS
+        );
+        this.quality = this.intSetting("quality", 0, 100, 85, "%");
+        this.matchWindowResolution = this.booleanSetting("match_window", true);
+        this.pngLevel = this.intSetting("png_level", 0, 9, 9, "");
+        this.webpMethod = this.intSetting("webp_method", 0, 6, 4, "");
+        this.avifSpeed = this.intSetting("avif_speed", 0, 10, 6, "");
+        this.jxlEffort = this.intSetting("jxl_effort", 1, 10, 7, "");
+        this.useExternalEncoders = this.booleanSetting("use_external", false);
+        this.preferExternalWhenAvailable = this.booleanSetting("prefer_external", false);
+        this.avifEncoder = this.stringSetting("avif_encoder", "avifenc", 256);
+        this.webpEncoder = this.stringSetting("webp_encoder", "cwebp", 256);
+        this.pngOptimizer = this.stringSetting("png_optimizer", "oxipng", 256);
+        this.jpegEncoder = this.stringSetting("jpeg_encoder", "cjpeg", 256);
+        this.jxlEncoder = this.stringSetting("jxl_encoder", "cjxl", 256);
     }
 
     public CompressionOptions createOptions() {

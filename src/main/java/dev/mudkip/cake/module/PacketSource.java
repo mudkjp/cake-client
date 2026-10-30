@@ -4,7 +4,6 @@ public final class PacketSource {
     private static final ThreadLocal<Boolean> DECODING = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private PacketSource() {
-
     }
 
     public static void enter() {

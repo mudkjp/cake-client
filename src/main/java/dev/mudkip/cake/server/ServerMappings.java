@@ -1,11 +1,11 @@
-package dev.mudkip.cake.discord;
+package dev.mudkip.cake.server;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonReader;
-import dev.mudkip.cake.CakeClient;
-import net.fabricmc.loader.api.FabricLoader;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -17,60 +17,71 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public final class ServerMappings {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServerMappings.class);
     private static final URI SOURCE = URI.create("https://servermappings.lunarclientcdn.com/servers.json");
-    private static final Path CACHE = FabricLoader.getInstance().getConfigDir().resolve("cake-servermappings.json");
     private static final long CACHE_AGE = 7L * 24L * 60L * 60L * 1000L;
     private static final long RETRY_DELAY = 5L * 60L * 1000L;
     private static final int CACHE_VERSION = 1;
     private static final Lookup EMPTY = new Lookup(Map.of(), List.of());
-    private static volatile Lookup mappings = ServerMappings.EMPTY;
-    private static volatile long fetched;
-    private static volatile boolean loading;
-    private static volatile boolean loaded;
-    private static volatile long lastAttempt;
 
-    private ServerMappings() {
+    private final Path cachePath;
+    private final HttpClient httpClient;
+    private volatile Lookup mappings;
+    private volatile long fetched;
+    private volatile boolean loading;
+    private volatile boolean loaded;
+    private volatile long lastAttempt;
 
+    public ServerMappings(Path cachePath) {
+        this.cachePath = cachePath;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(15L))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+        this.mappings = ServerMappings.EMPTY;
     }
 
-    public static void ensureLoaded() {
+    public void ensureLoaded() {
         var now = System.currentTimeMillis();
 
-        if (loaded && !mappings.exact().isEmpty() && now - fetched < ServerMappings.CACHE_AGE) {
+        if (this.loaded && !this.mappings.exact().isEmpty() && now - this.fetched < ServerMappings.CACHE_AGE) {
             return;
         }
 
-        if (loading || now - lastAttempt < ServerMappings.RETRY_DELAY) {
+        if (this.loading || now - this.lastAttempt < ServerMappings.RETRY_DELAY) {
             return;
         }
 
-        loading = true;
-        lastAttempt = now;
+        this.loading = true;
+        this.lastAttempt = now;
 
-        var thread = new Thread(ServerMappings::load, "Cake Server Mappings");
+        var thread = new Thread(this::load, "Cake Server Mappings");
         thread.setDaemon(true);
         thread.start();
     }
 
-    public static @Nullable Mapping lookup(String address) {
-        var host = ServerMappings.normalize(address);
+    public @Nullable Mapping lookup(String address) {
+        var host = ServerAddresses.normalize(address);
 
         if (host == null) {
             return null;
         }
 
-        var current = mappings;
+        var current = this.mappings;
         var exact = current.exact().get(host);
 
         if (exact != null) {
             return new Mapping(exact.name(), exact.logo());
         }
 
-        Entry best = null;
+        @Nullable Entry best = null;
         var bestLength = 0;
 
         for (var entry : current.entries()) {
@@ -85,62 +96,58 @@ public final class ServerMappings {
         return best == null ? null : new Mapping(best.name(), best.logo());
     }
 
-    private static void load() {
+    private void load() {
         try {
-            if (!loaded) {
-                ServerMappings.readCache();
+            if (!this.loaded) {
+                this.readCache();
             }
 
-            if (loaded && !mappings.exact().isEmpty() && System.currentTimeMillis() - fetched < ServerMappings.CACHE_AGE) {
+            if (this.loaded && !this.mappings.exact().isEmpty() && System.currentTimeMillis() - this.fetched < ServerMappings.CACHE_AGE) {
                 return;
             }
 
-            var cache = ServerMappings.download();
+            var cache = this.download();
 
             if (cache != null) {
-                ServerMappings.apply(cache);
-                fetched = cache.fetched();
-                loaded = true;
-                ServerMappings.writeCache(cache);
+                this.apply(cache);
+                this.fetched = cache.fetched();
+                this.loaded = true;
+                this.writeCache(cache);
             }
         } catch (Exception exception) {
-            CakeClient.LOGGER.warn("Failed to update ServerMappings", exception);
+            LOGGER.warn("Failed to update ServerMappings", exception);
         } finally {
-            loading = false;
+            this.loading = false;
         }
     }
 
-    private static void readCache() {
-        if (!Files.exists(ServerMappings.CACHE)) {
+    private void readCache() {
+        if (!Files.exists(this.cachePath)) {
             return;
         }
 
-        try (var reader = Files.newBufferedReader(ServerMappings.CACHE, StandardCharsets.UTF_8)) {
+        try (var reader = Files.newBufferedReader(this.cachePath, StandardCharsets.UTF_8)) {
             var cache = ServerMappings.GSON.fromJson(reader, Cache.class);
 
             if (cache == null || cache.version() != ServerMappings.CACHE_VERSION) {
                 return;
             }
 
-            ServerMappings.apply(cache);
-            fetched = cache.fetched();
-            loaded = true;
+            this.apply(cache);
+            this.fetched = cache.fetched();
+            this.loaded = true;
         } catch (Exception exception) {
-            CakeClient.LOGGER.warn("Failed to read the ServerMappings cache", exception);
+            LOGGER.warn("Failed to read the ServerMappings cache", exception);
         }
     }
 
-    private static @Nullable Cache download() throws IOException, InterruptedException {
-        var client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(15L))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
+    private @Nullable Cache download() throws IOException, InterruptedException {
         var request = HttpRequest.newBuilder(ServerMappings.SOURCE)
                 .timeout(Duration.ofSeconds(60L))
                 .header("User-Agent", "CakeClient")
                 .GET()
                 .build();
-        var response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        var response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
 
         if (response.statusCode() != 200) {
             response.body().close();
@@ -155,9 +162,9 @@ public final class ServerMappings {
             json.beginArray();
 
             while (json.hasNext()) {
-                String name = null;
-                String logo128 = null;
-                String logo64 = null;
+                @Nullable String name = null;
+                @Nullable String logo128 = null;
+                @Nullable String logo64 = null;
                 List<String> addresses = List.of();
                 var inactive = false;
 
@@ -214,7 +221,7 @@ public final class ServerMappings {
         return new Cache(ServerMappings.CACHE_VERSION, System.currentTimeMillis(), List.copyOf(servers));
     }
 
-    private static void apply(Cache cache) {
+    private void apply(Cache cache) {
         var servers = cache.servers();
 
         if (servers == null) {
@@ -236,7 +243,7 @@ public final class ServerMappings {
                     continue;
                 }
 
-                var normalized = ServerMappings.normalize(address);
+                var normalized = ServerAddresses.normalize(address);
 
                 if (normalized != null) {
                     addresses.add(normalized);
@@ -253,55 +260,27 @@ public final class ServerMappings {
             }
         }
 
-        mappings = new Lookup(Map.copyOf(exact), List.copyOf(entries));
+        this.mappings = new Lookup(Map.copyOf(exact), List.copyOf(entries));
     }
 
-    private static void writeCache(Cache cache) {
+    private void writeCache(Cache cache) {
         try {
-            Files.createDirectories(ServerMappings.CACHE.getParent());
-            Files.writeString(ServerMappings.CACHE, ServerMappings.GSON.toJson(cache), StandardCharsets.UTF_8);
+            Files.createDirectories(this.cachePath.getParent());
+            Files.writeString(this.cachePath, ServerMappings.GSON.toJson(cache), StandardCharsets.UTF_8);
         } catch (IOException exception) {
-            CakeClient.LOGGER.warn("Failed to write the ServerMappings cache", exception);
+            LOGGER.warn("Failed to write the ServerMappings cache", exception);
         }
-    }
-
-    private static @Nullable String normalize(String address) {
-        var value = address.trim().toLowerCase(Locale.ROOT);
-
-        if (value.isEmpty() || value.startsWith("[")) {
-            return null;
-        }
-
-        var colon = value.indexOf(':');
-
-        if (colon >= 0) {
-            if (colon != value.lastIndexOf(':')) {
-                return null;
-            }
-
-            value = value.substring(0, colon);
-        }
-
-        while (value.endsWith(".")) {
-            value = value.substring(0, value.length() - 1);
-        }
-
-        return value.isEmpty() ? null : value;
     }
 
     public record Mapping(String name, @Nullable String logo) {
-
     }
 
-    private record Cache(int version, long fetched, List<Entry> servers) {
-
+    private record Cache(int version, long fetched, @Nullable List<Entry> servers) {
     }
 
     private record Entry(String name, @Nullable String logo, List<String> addresses) {
-
     }
 
     private record Lookup(Map<String, Entry> exact, List<Entry> entries) {
-
     }
 }

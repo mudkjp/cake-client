@@ -8,7 +8,13 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.container.UIContainers;
-import io.wispforest.owo.ui.core.*;
+import io.wispforest.owo.ui.core.Color;
+import io.wispforest.owo.ui.core.HorizontalAlignment;
+import io.wispforest.owo.ui.core.Insets;
+import io.wispforest.owo.ui.core.Sizing;
+import io.wispforest.owo.ui.core.Surface;
+import io.wispforest.owo.ui.core.UIComponent;
+import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
@@ -29,14 +35,16 @@ public final class ModMenuScreen extends MenuOwoScreen {
     private static final int MAX_NAME_LINES = 2;
     private static final int MAX_DESCRIPTION_LINES = 4;
 
-    private FlowLayout filterRow;
-    private FlowLayout gridContainer;
+    private final ModuleManager modules;
+    private @Nullable FlowLayout filterRow;
+    private @Nullable FlowLayout gridContainer;
     private String searchQuery;
     private @Nullable ModuleCategory categoryFilter;
     private int panelWidth;
 
-    public ModMenuScreen() {
+    public ModMenuScreen(ModuleManager modules) {
         super(Component.literal("Cake Client"));
+        this.modules = modules;
         this.searchQuery = "";
     }
 
@@ -51,7 +59,10 @@ public final class ModMenuScreen extends MenuOwoScreen {
         var heightFraction = (int) Math.round(this.height * ModMenuScreen.PANEL_HEIGHT_FRACTION);
 
         this.panelWidth = Math.max(1, Math.min(ModMenuScreen.PANEL_MAX_WIDTH, Math.min(availableWidth, widthFraction)));
-        var panelHeight = Math.max(1, Math.min(ModMenuScreen.PANEL_MAX_HEIGHT, Math.min(availableHeight, heightFraction)));
+        var panelHeight = Math.max(
+                1,
+                Math.min(ModMenuScreen.PANEL_MAX_HEIGHT, Math.min(availableHeight, heightFraction))
+        );
 
         var panel = UIContainers.verticalFlow(Sizing.fixed(this.panelWidth), Sizing.fixed(panelHeight))
                 .gap(8);
@@ -109,27 +120,24 @@ public final class ModMenuScreen extends MenuOwoScreen {
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
-
-    @Override
     public void onClose() {
-        ModuleManager.get().saveIfDirty();
+        this.modules.saveIfDirty();
         this.minecraft.gui.setScreen(null);
     }
 
     private void rebuildFilters() {
-        if (this.filterRow == null) {
+        var row = this.filterRow;
+
+        if (row == null) {
             return;
         }
 
-        this.filterRow.clearChildren();
-        this.filterRow.child(this.filterButton(null));
+        row.clearChildren();
+        row.child(this.filterButton(null));
 
         for (var category : ModuleCategory.values()) {
             if (this.hasModules(category)) {
-                this.filterRow.child(this.filterButton(category));
+                row.child(this.filterButton(category));
             }
         }
     }
@@ -139,10 +147,14 @@ public final class ModMenuScreen extends MenuOwoScreen {
                 category == null ? Component.translatable("cake.menu.category.all") : category.getDisplayName(),
                 component -> {
                     this.categoryFilter = category;
-                    this.filterRow.queue(() -> {
-                        this.rebuildFilters();
-                        this.rebuildModules();
-                    });
+                    var row = this.filterRow;
+
+                    if (row != null) {
+                        row.queue(() -> {
+                            this.rebuildFilters();
+                            this.rebuildModules();
+                        });
+                    }
                 }
         );
         var activeColor = category == null ? UiStyles.ALL_ACCENT : category.getColor();
@@ -162,7 +174,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
     }
 
     private boolean hasModules(ModuleCategory category) {
-        for (var module : ModuleManager.get().getModules()) {
+        for (var module : this.modules.getModules()) {
             if (module.getCategory() == category && module.isAvailable()) {
                 return true;
             }
@@ -172,49 +184,49 @@ public final class ModMenuScreen extends MenuOwoScreen {
     }
 
     private void rebuildModules() {
-        if (this.gridContainer == null) {
+        var gridContainer = this.gridContainer;
+
+        if (gridContainer == null) {
             return;
         }
 
-        this.withMenuFont(() -> {
-            this.gridContainer.clearChildren();
+        gridContainer.clearChildren();
 
-            var query = this.searchQuery.trim().toLowerCase(Locale.ROOT);
-            var visible = new ArrayList<ClientModule>();
+        var query = this.searchQuery.trim().toLowerCase(Locale.ROOT);
+        var visible = new ArrayList<ClientModule>();
 
-            for (var category : ModuleCategory.values()) {
-                if (this.categoryFilter != null && this.categoryFilter != category) {
-                    continue;
-                }
+        for (var category : ModuleCategory.values()) {
+            if (this.categoryFilter != null && this.categoryFilter != category) {
+                continue;
+            }
 
-                for (var module : ModuleManager.get().getModules()) {
-                    if (module.getCategory() == category && module.isAvailable() && this.matches(module, query)) {
-                        visible.add(module);
-                    }
+            for (var module : this.modules.getModules()) {
+                if (module.getCategory() == category && module.isAvailable() && this.matches(module, query)) {
+                    visible.add(module);
                 }
             }
+        }
 
-            if (visible.isEmpty()) {
-                this.gridContainer.child(UIComponents.label(Component.translatable("cake.menu.no_results"))
-                        .color(Color.ofArgb(UiStyles.MUTED_TEXT)));
-                return;
-            }
+        if (visible.isEmpty()) {
+            gridContainer.child(UIComponents.label(Component.translatable("cake.menu.no_results"))
+                    .color(Color.ofArgb(UiStyles.MUTED_TEXT)));
+            return;
+        }
 
-            var maxColumns = this.panelWidth >= ModMenuScreen.THREE_COLUMN_MIN_WIDTH
-                    ? 3
-                    : this.panelWidth >= ModMenuScreen.TWO_COLUMN_MIN_WIDTH ? 2 : 1;
-            var columns = Math.max(1, Math.min(maxColumns, visible.size()));
-            var usableWidth = Math.max(1, this.panelWidth - 24);
-            var cardWidth = Math.max(1, usableWidth / columns - ModMenuScreen.CARD_MARGIN * 2);
-            var rows = (visible.size() + columns - 1) / columns;
-            var grid = UIContainers.grid(Sizing.content(), Sizing.content(), rows, columns);
+        var maxColumns = this.panelWidth >= ModMenuScreen.THREE_COLUMN_MIN_WIDTH
+                ? 3
+                : this.panelWidth >= ModMenuScreen.TWO_COLUMN_MIN_WIDTH ? 2 : 1;
+        var columns = Math.max(1, Math.min(maxColumns, visible.size()));
+        var usableWidth = Math.max(1, this.panelWidth - 24);
+        var cardWidth = Math.max(1, usableWidth / columns - ModMenuScreen.CARD_MARGIN * 2);
+        var rows = (visible.size() + columns - 1) / columns;
+        var grid = UIContainers.grid(Sizing.content(), Sizing.content(), rows, columns);
 
-            for (var index = 0; index < visible.size(); index++) {
-                grid.child(this.moduleCard(visible.get(index), cardWidth), index / columns, index % columns);
-            }
+        for (var index = 0; index < visible.size(); index++) {
+            grid.child(this.moduleCard(visible.get(index), cardWidth), index / columns, index % columns);
+        }
 
-            this.gridContainer.child(grid);
-        });
+        gridContainer.child(grid);
     }
 
     private boolean matches(ClientModule module, String query) {
@@ -226,7 +238,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
         return module.getId().contains(query)
                 || module.getName().getString().toLowerCase(Locale.ROOT).contains(query)
                 || module.getDescription().getString().toLowerCase(Locale.ROOT).contains(query)
-                || (integration != null && integration.getName().toLowerCase(Locale.ROOT).contains(query));
+                || (integration != null && integration.name().toLowerCase(Locale.ROOT).contains(query));
     }
 
     private UIComponent moduleCard(ClientModule module, int cardWidth) {
@@ -263,7 +275,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
         info.child(description);
 
         if (integration != null) {
-            var badge = UIComponents.label(this.cardText(Component.literal(integration.getName()), textWidth, 1))
+            var badge = UIComponents.label(this.cardText(Component.literal(integration.name()), textWidth, 1))
                     .color(Color.ofArgb(UiStyles.SERVER_ACCENT))
                     .lineSpacing(0)
                     .maxWidth(textWidth);
@@ -283,11 +295,17 @@ public final class ModMenuScreen extends MenuOwoScreen {
         var actions = UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content()).gap(4);
         var actionWidth = Math.max(1, (cardWidth - 16 - 4) / 2);
 
-        var enabled = ModuleWidgets.enabledButton(module, () -> this.uiAdapter.rootComponent.queue(this::rebuildModules));
+        var enabled = ModuleWidgets.createEnabledButton(
+                module,
+                () -> this.uiAdapter.rootComponent.queue(this::rebuildModules)
+        );
         enabled.horizontalSizing(Sizing.fixed(actionWidth));
         actions.child(enabled);
 
-        var configure = UIComponents.button(Component.translatable("cake.menu.configure"), button -> this.minecraft.gui.setScreen(new ModuleDetailsScreen(module)));
+        var configure = UIComponents.button(
+                Component.translatable("cake.menu.configure"),
+                button -> this.minecraft.gui.setScreen(new ModuleDetailsScreen(this.modules, module))
+        );
         configure.renderer(UiStyles.SECONDARY_BUTTON);
         configure.textShadow(false);
         configure.horizontalSizing(Sizing.fixed(actionWidth));
@@ -298,7 +316,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
     }
 
     private Component cardText(Component text, int maxWidth, int maxLines) {
-        var font = this.menuFont;
+        var font = this.minecraft.font;
 
         if (font.split(text, maxWidth).size() <= maxLines) {
             return text;

@@ -1,7 +1,7 @@
 package dev.mudkip.cake.mixin;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import dev.mudkip.cake.module.ModuleManager;
+import dev.mudkip.cake.MinecraftClientAccess;
 import dev.mudkip.cake.module.modules.CpsModule;
 import dev.mudkip.cake.module.modules.ZoomModule;
 import net.minecraft.client.Minecraft;
@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(MouseHandler.class)
-public final class MouseHandlerMixin {
+public abstract class MouseHandlerMixin {
     @Shadow
     @Final
     private Minecraft minecraft;
@@ -31,7 +31,11 @@ public final class MouseHandlerMixin {
             return;
         }
 
-        CpsModule.recordClick(buttonInfo.button());
+        var module = ((MinecraftClientAccess) this.minecraft).cake$getModule(CpsModule.class);
+
+        if (module != null) {
+            module.recordClick(buttonInfo.button());
+        }
     }
 
     @Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)
@@ -45,9 +49,9 @@ public final class MouseHandlerMixin {
             return;
         }
 
-        var module = ModuleManager.get().get(ZoomModule.class);
+        var module = ((MinecraftClientAccess) this.minecraft).cake$getActiveModule(ZoomModule.class);
 
-        if (module == null || !module.isEnabled()) {
+        if (module == null) {
             return;
         }
 

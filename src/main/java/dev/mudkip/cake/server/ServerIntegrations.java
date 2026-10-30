@@ -1,7 +1,7 @@
 package dev.mudkip.cake.server;
 
-public final class BedwarsPracticeIntegration {
-    public static final ServerIntegration INSTANCE = new ServerIntegration(
+public final class ServerIntegrations {
+    public static final ServerIntegration BEDWARS_PRACTICE = ServerIntegration.of(
             "bedwarspractice",
             "Bedwars Practice",
             "bedwarspractice.club",
@@ -9,7 +9,6 @@ public final class BedwarsPracticeIntegration {
             "voxyl.net"
     );
 
-    private BedwarsPracticeIntegration() {
-
+    private ServerIntegrations() {
     }
 }

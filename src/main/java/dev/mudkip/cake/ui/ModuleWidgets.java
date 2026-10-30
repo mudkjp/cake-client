@@ -7,11 +7,10 @@ import net.minecraft.network.chat.Component;
 
 public final class ModuleWidgets {
     private ModuleWidgets() {
-
     }
 
-    public static ButtonComponent enabledButton(ClientModule module, Runnable afterToggle) {
-        var button = UIComponents.button(ModuleWidgets.label(module), component -> {
+    public static ButtonComponent createEnabledButton(ClientModule module, Runnable afterToggle) {
+        var button = UIComponents.button(ModuleWidgets.stateLabel(module), component -> {
             if (module.isAvailable()) {
                 module.setEnabled(!module.isEnabled());
             }
@@ -32,12 +31,12 @@ public final class ModuleWidgets {
             return;
         }
 
-        button.setMessage(ModuleWidgets.label(module));
+        button.setMessage(ModuleWidgets.stateLabel(module));
         button.active(true);
         button.renderer(module.isEnabled() ? UiStyles.ENABLED_BUTTON : UiStyles.DISABLED_BUTTON);
     }
 
-    private static Component label(ClientModule module) {
+    private static Component stateLabel(ClientModule module) {
         if (!module.isAvailable()) {
             return Component.translatable("cake.menu.unavailable");
         }

@@ -1,12 +1,14 @@
 package dev.mudkip.cake.discord;
 
-import dev.mudkip.cake.CakeClient;
 import fun.crashsystem.jdrpc.DiscordIPC;
 import fun.crashsystem.jdrpc.DiscordIPCConfig;
 import fun.crashsystem.jdrpc.activity.Activity;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class DiscordRpc {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DiscordRpc.class);
     private static final long RETRY_DELAY = 5000L;
     private static final long IDLE_DELAY = 500L;
     private static final long COMMAND_TIMEOUT = 5000L;
@@ -28,19 +30,19 @@ public final class DiscordRpc {
     }
 
     public void update(Activity activity) {
-        var worker = this.worker;
+        var current = this.worker;
 
-        if (worker != null) {
-            worker.update(activity);
+        if (current != null) {
+            current.update(activity);
         }
     }
 
     public void stop() {
-        var worker = this.worker;
+        var current = this.worker;
 
-        if (worker != null) {
+        if (current != null) {
             this.worker = null;
-            worker.requestStop();
+            current.requestStop();
         }
     }
 
@@ -58,30 +60,42 @@ public final class DiscordRpc {
 
         @Override
         public void run() {
-            var ipc = DiscordIPC.create(DiscordIPCConfig.builder()
-                    .clientId(DiscordRpc.this.applicationId)
-                    .reconnect(true)
-                    .commandTimeoutMs(DiscordRpc.COMMAND_TIMEOUT)
-                    .build());
+            DiscordIPC ipc = null;
 
-            while (this.running && !this.connect(ipc)) {
-                this.pause(DiscordRpc.RETRY_DELAY);
-            }
+            try {
+                ipc = DiscordIPC.create(DiscordIPCConfig.builder()
+                        .clientId(DiscordRpc.this.applicationId)
+                        .reconnect(true)
+                        .commandTimeoutMs(DiscordRpc.COMMAND_TIMEOUT)
+                        .build());
 
-            if (this.running) {
-                while (this.running) {
-                    this.flush(ipc);
-                    this.pause(DiscordRpc.IDLE_DELAY);
+                while (this.running && !this.connect(ipc)) {
+                    this.pause(DiscordRpc.RETRY_DELAY);
                 }
 
-                try {
-                    ipc.clearActivity();
-                } catch (Exception exception) {
-                    CakeClient.LOGGER.debug("Failed to clear Discord Rich Presence", exception);
+                if (this.running) {
+                    while (this.running) {
+                        this.flush(ipc);
+                        this.pause(DiscordRpc.IDLE_DELAY);
+                    }
+
+                    try {
+                        ipc.clearActivity();
+                    } catch (Exception exception) {
+                        LOGGER.debug("Failed to clear Discord Rich Presence", exception);
+                    }
+                }
+            } catch (Exception exception) {
+                LOGGER.warn("Discord Rich Presence worker stopped unexpectedly", exception);
+            } finally {
+                if (ipc != null) {
+                    try {
+                        ipc.close();
+                    } catch (Exception exception) {
+                        LOGGER.debug("Failed to close Discord Rich Presence", exception);
+                    }
                 }
             }
-
-            ipc.close();
         }
 
         private boolean connect(DiscordIPC ipc) {
@@ -89,7 +103,7 @@ public final class DiscordRpc {
                 ipc.connect();
                 return true;
             } catch (Exception exception) {
-                CakeClient.LOGGER.debug("Failed to connect to Discord", exception);
+                LOGGER.debug("Failed to connect to Discord", exception);
                 return false;
             }
         }
@@ -119,7 +133,7 @@ public final class DiscordRpc {
                 ipc.setActivity(activity);
                 this.sent = activity;
             } catch (Exception exception) {
-                CakeClient.LOGGER.debug("Failed to update Discord Rich Presence", exception);
+                LOGGER.debug("Failed to update Discord Rich Presence", exception);
                 this.sent = null;
             }
         }
@@ -133,7 +147,7 @@ public final class DiscordRpc {
             try {
                 Thread.sleep(milliseconds);
             } catch (InterruptedException exception) {
-                Thread.interrupted();
+                Thread.currentThread().interrupt();
             }
         }
     }

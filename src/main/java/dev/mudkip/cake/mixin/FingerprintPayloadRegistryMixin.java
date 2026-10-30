@@ -1,8 +1,10 @@
 package dev.mudkip.cake.mixin;
 
+import dev.mudkip.cake.MinecraftClientAccess;
 import dev.mudkip.cake.module.PacketSource;
 import dev.mudkip.cake.module.modules.FingerprintModule;
 import net.fabricmc.fabric.impl.networking.PayloadTypeRegistryImpl;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
@@ -41,8 +43,9 @@ public abstract class FingerprintPayloadRegistryMixin {
         }
 
         var registry = (PayloadTypeRegistryImpl<?>) (Object) this;
+        var module = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getActiveModule(FingerprintModule.class);
 
-        if (registry.getFlow() != PacketFlow.CLIENTBOUND || !FingerprintModule.shouldDropInboundChannel(id)) {
+        if (registry.getFlow() != PacketFlow.CLIENTBOUND || module == null || !module.shouldDropInboundChannel(id)) {
             return;
         }
 

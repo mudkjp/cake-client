@@ -2,6 +2,7 @@ package dev.mudkip.cake.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.sugar.Local;
+import dev.mudkip.cake.MinecraftClientAccess;
 import dev.mudkip.cake.module.modules.FingerprintModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.packs.DownloadQueue;
@@ -26,7 +27,13 @@ public abstract class FingerprintDownloadQueueMixin {
     private Path cake$isolatePackCache(Path original, @Local(argsOnly = true) UUID id) {
         var minecraft = Minecraft.getInstance();
 
-        if (!FingerprintModule.shouldIsolatePackCache() || minecraft == null) {
+        if (minecraft == null) {
+            return original;
+        }
+
+        var module = ((MinecraftClientAccess) minecraft).cake$getActiveModule(FingerprintModule.class);
+
+        if (module == null || !module.shouldIsolatePackCache()) {
             return original;
         }
 
