@@ -3,7 +3,6 @@ package dev.mudkip.cake.ui;
 import dev.mudkip.cake.module.ClientModule;
 import dev.mudkip.cake.module.ModuleCategory;
 import dev.mudkip.cake.module.ModuleManager;
-import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.FlowLayout;
@@ -12,7 +11,6 @@ import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
-import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
@@ -24,9 +22,11 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Locale;
 
-public final class ModMenuScreen extends BaseOwoScreen<FlowLayout> {
-    private static final int PANEL_MAX_WIDTH = 520;
-    private static final int PANEL_MAX_HEIGHT = 320;
+public final class ModMenuScreen extends ZoomedOwoScreen {
+    private static final int PANEL_MAX_WIDTH = ZoomedOwoScreen.layoutPixels(520);
+    private static final int PANEL_MAX_HEIGHT = ZoomedOwoScreen.layoutPixels(320);
+    private static final int THREE_COLUMN_MIN_WIDTH = ZoomedOwoScreen.layoutPixels(340);
+    private static final int TWO_COLUMN_MIN_WIDTH = ZoomedOwoScreen.layoutPixels(220);
     private static final double PANEL_WIDTH_FRACTION = 0.5D;
     private static final double PANEL_HEIGHT_FRACTION = 0.55D;
     private static final int CARD_HEIGHT = 100;
@@ -47,19 +47,16 @@ public final class ModMenuScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     @Override
-    protected OwoUIAdapter<FlowLayout> createAdapter() {
-        return OwoUIAdapter.create(this, UIContainers::verticalFlow);
-    }
-
-    @Override
     protected void build(FlowLayout root) {
         root.surface(Surface.BLANK);
         root.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
 
-        var availableWidth = Math.max(1, this.width - 32);
-        var availableHeight = Math.max(1, this.height - 32);
-        var widthFraction = (int) Math.round(this.width * ModMenuScreen.PANEL_WIDTH_FRACTION);
-        var heightFraction = (int) Math.round(this.height * ModMenuScreen.PANEL_HEIGHT_FRACTION);
+        var layoutWidth = this.layoutWidth();
+        var layoutHeight = this.layoutHeight();
+        var availableWidth = Math.max(1, layoutWidth - ZoomedOwoScreen.layoutPixels(32));
+        var availableHeight = Math.max(1, layoutHeight - ZoomedOwoScreen.layoutPixels(32));
+        var widthFraction = (int) Math.round(layoutWidth * ModMenuScreen.PANEL_WIDTH_FRACTION);
+        var heightFraction = (int) Math.round(layoutHeight * ModMenuScreen.PANEL_HEIGHT_FRACTION);
 
         this.panelWidth = Math.max(1, Math.min(ModMenuScreen.PANEL_MAX_WIDTH, Math.min(availableWidth, widthFraction)));
         var panelHeight = Math.max(1, Math.min(ModMenuScreen.PANEL_MAX_HEIGHT, Math.min(availableHeight, heightFraction)));
@@ -210,10 +207,12 @@ public final class ModMenuScreen extends BaseOwoScreen<FlowLayout> {
             return;
         }
 
-        var maxColumns = this.panelWidth >= 500 ? 3 : this.panelWidth >= 340 ? 2 : 1;
+        var maxColumns = this.panelWidth >= ModMenuScreen.THREE_COLUMN_MIN_WIDTH
+                ? 3
+                : this.panelWidth >= ModMenuScreen.TWO_COLUMN_MIN_WIDTH ? 2 : 1;
         var columns = Math.max(1, Math.min(maxColumns, visible.size()));
         var usableWidth = Math.max(1, this.panelWidth - 24);
-        var cardWidth = Math.max(1, usableWidth / maxColumns - ModMenuScreen.CARD_MARGIN * 2);
+        var cardWidth = Math.max(1, usableWidth / columns - ModMenuScreen.CARD_MARGIN * 2);
         var rows = (visible.size() + columns - 1) / columns;
         var grid = UIContainers.grid(Sizing.content(), Sizing.content(), rows, columns);
 
@@ -248,12 +247,13 @@ public final class ModMenuScreen extends BaseOwoScreen<FlowLayout> {
 
         var info = UIContainers.verticalFlow(Sizing.expand(100), Sizing.content()).gap(1);
 
-        var name = UIComponents.label(module.getName()).shadow(true);
+        var name = UIComponents.label(module.getName()).shadow(true).lineSpacing(0);
         name.horizontalSizing(Sizing.fill(100));
 
         var descriptionWidth = Math.max(1, cardWidth - 16 - ModMenuScreen.ICON_SIZE - 6);
         var description = UIComponents.label(this.cardDescription(module, descriptionWidth))
                 .color(Color.ofArgb(UiStyles.MUTED_TEXT))
+                .lineSpacing(0)
                 .maxWidth(descriptionWidth);
         description.horizontalSizing(Sizing.fill(100));
 
