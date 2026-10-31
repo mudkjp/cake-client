@@ -24,8 +24,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -37,6 +39,7 @@ public final class ClipRecorder {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClipRecorder.class);
     private static final String SEGMENT_PATTERN = "segment-%06d.mp4";
     private static final String SEGMENT_PREFIX = "segment-";
+    private static final String SEGMENT_LIST = "segments.csv";
     private static final int SEGMENT_SECONDS = 1;
     private static final long SAVE_WAIT_NANOS = 2_000_000_000L;
     private static volatile @Nullable Session activeSession;
@@ -55,6 +58,7 @@ public final class ClipRecorder {
     private @Nullable String lastFfmpegPath;
     private int lastQuality;
     private boolean audioFailureReported;
+    private boolean softwareFallback;
     private long settingsRestartAtNanos;
     private int prepareGeneration;
 
@@ -78,6 +82,7 @@ public final class ClipRecorder {
         this.restartPending = false;
         this.settingsRestartAtNanos = 0L;
         this.audioFailureReported = false;
+        this.softwareFallback = false;
         this.audio.setEnabled(enabled && this.module.isAudioEnabled());
 
         if (!enabled) {
@@ -136,7 +141,12 @@ public final class ClipRecorder {
             this.session = null;
             ClipRecorder.activeSession = null;
             this.failed = true;
-            this.notify(Component.translatable("cake.clip.failure", Component.literal("Recorder stopped")));
+            this.notify(Component.translatable("cake.clip.recorder_stopped"));
+            return;
+        }
+
+        if (currentSession != null && currentSession.isStalled()) {
+            this.handleStall(currentSession);
             return;
         }
 
@@ -157,7 +167,29 @@ public final class ClipRecorder {
             return;
         }
 
+        if (current.isStalled()) {
+            this.handleStall(current);
+            return;
+        }
+
         current.requestSave(this.module.isAudioEnabled());
+    }
+
+    private void handleStall(Session current) {
+        LOGGER.warn("Clip recorder stalled with encoder {}", current.encoder.name());
+        current.abort();
+        this.session = null;
+        ClipRecorder.activeSession = null;
+
+        if (this.softwareFallback) {
+            this.failed = true;
+            this.notify(Component.translatable("cake.clip.recorder_stopped"));
+            return;
+        }
+
+        this.softwareFallback = true;
+        this.restartPending = true;
+        this.notify(Component.translatable("cake.clip.encoder_stalled"));
     }
 
     public void settingsChanged() {
@@ -172,6 +204,10 @@ public final class ClipRecorder {
         if (this.audio.isEnabled() != audioEnabled) {
             this.audio.setEnabled(audioEnabled);
             this.audioFailureReported = false;
+        }
+
+        if (this.lastEncoder != this.module.getEncoderPreference()) {
+            this.softwareFallback = false;
         }
 
         if (this.preparing) {
@@ -216,7 +252,7 @@ public final class ClipRecorder {
         this.preparing = true;
         var generation = ++this.prepareGeneration;
         var configured = this.module.getFfmpegPath();
-        var preference = this.module.getEncoderPreference();
+        var preference = this.softwareFallback ? ClipEncoderPreference.SOFTWARE : this.module.getEncoderPreference();
         var quality = this.module.getQuality();
         var fps = this.module.getFps().getValue();
 
@@ -299,6 +335,7 @@ public final class ClipRecorder {
         this.rememberSettings();
         this.audio.setEnabled(this.module.isAudioEnabled());
         ClipRecorder.activeSession = created;
+        LOGGER.info("Clip recorder started with {}", prepared.encoder().name());
     }
 
     private void stopSession() {
@@ -370,6 +407,9 @@ public final class ClipRecorder {
         private volatile boolean running;
         private volatile boolean saveRunning;
         private int nextSegmentIndex;
+        private final long startedNanos;
+        private long lastSegmentGrowthNanos;
+        private long lastSegmentModifiedMillis;
 
         private Session(
                 Minecraft client,
@@ -393,6 +433,8 @@ public final class ClipRecorder {
             this.saving = new AtomicBoolean();
             this.running = true;
             this.saveRunning = true;
+            this.startedNanos = System.nanoTime();
+            this.lastSegmentGrowthNanos = this.startedNanos;
         }
 
         private void start() throws IOException {
@@ -431,6 +473,30 @@ public final class ClipRecorder {
             return current != null && (this.target.width != current.getWidth() || this.target.height != current.getHeight());
         }
 
+        private boolean isStalled() {
+            if (!this.running || this.saving.get()) {
+                return false;
+            }
+
+            var current = this.capture;
+
+            if (current == null) {
+                return false;
+            }
+
+            var now = System.nanoTime();
+
+            if (now - this.startedNanos < 10_000_000_000L) {
+                return false;
+            }
+
+            if (now - current.getLastRenderNanos() > 2_000_000_000L) {
+                return false;
+            }
+
+            return now - this.lastSegmentGrowthNanos > 5_000_000_000L;
+        }
+
         private void captureFrame() {
             if (!this.running) {
                 return;
@@ -456,14 +522,56 @@ public final class ClipRecorder {
             future.whenComplete((result, error) -> {
                 this.saving.set(false);
                 this.client.execute(() -> {
-                    if (result == null || result.error() != null) {
-                        var message = error != null ? error.getMessage() : result == null ? "Unknown error" : result.error();
-                        this.notify(Component.translatable("cake.clip.failure", Component.literal(String.valueOf(message))));
+                    if (result == null) {
+                        this.notify(Component.translatable("cake.clip.failure", Component.literal(String.valueOf(error))));
+                    } else if (result.errorKey() != null) {
+                        this.notify(Component.translatable(result.errorKey()));
+                    } else if (result.error() != null) {
+                        this.notify(Component.translatable("cake.clip.failure", Component.literal(result.error())));
                     } else {
                         this.notify(ClipRecorder.savedMessage(result.path(), result.bytes(), result.seconds()));
                     }
                 });
             });
+        }
+
+        private void abort() {
+            this.running = false;
+            this.saveRunning = false;
+            var current = this.process;
+
+            if (current != null) {
+                current.destroyForcibly();
+            }
+
+            if (this.writerThread != null) {
+                this.writerThread.interrupt();
+            }
+
+            if (this.watcherThread != null) {
+                this.watcherThread.interrupt();
+            }
+
+            if (this.saveThread != null) {
+                this.saveThread.interrupt();
+            }
+
+            if (this.stderrThread != null) {
+                this.stderrThread.interrupt();
+            }
+
+            if (this.frameChannel != null) {
+                try {
+                    this.frameChannel.close();
+                } catch (IOException ignored) {
+                }
+            }
+
+            if (this.capture != null) {
+                this.capture.close();
+            }
+
+            ClipRecorder.deleteDirectory(this.directory);
         }
 
         private void stop() {
@@ -581,6 +689,10 @@ public final class ClipRecorder {
             arguments.add("1");
             arguments.add("-segment_format");
             arguments.add("mp4");
+            arguments.add("-segment_list");
+            arguments.add(this.directory.resolve(ClipRecorder.SEGMENT_LIST).toString());
+            arguments.add("-segment_list_type");
+            arguments.add("csv");
             arguments.add(this.directory.resolve(ClipRecorder.SEGMENT_PATTERN).toString());
             return arguments;
         }
@@ -676,6 +788,7 @@ public final class ClipRecorder {
 
             found.sort(Comparator.comparing(path -> path.getFileName().toString()));
             var now = System.nanoTime();
+            var segmentList = this.readSegmentList();
 
             synchronized (this.segmentLock) {
                 var added = new ArrayList<Path>();
@@ -695,34 +808,76 @@ public final class ClipRecorder {
                     }
                 }
 
-                if (!added.isEmpty()) {
-                    var currentCapture = this.capture;
-                    var captureStart = currentCapture == null ? 0L : currentCapture.getFirstFrameNanos();
-                    var step = ClipRecorder.SEGMENT_SECONDS * 1_000_000_000L;
-                    var base = now - (added.size() - 1L) * step;
+                var currentCapture = this.capture;
+                var captureStart = currentCapture == null ? 0L : currentCapture.getFirstFrameNanos();
 
-                    for (var index = 0; index < added.size(); index++) {
-                        var path = added.get(index);
-                        var start = this.segments.isEmpty() && index == 0 && captureStart != 0L
-                                ? captureStart
-                                : base + index * step;
-                        var segment = new Segment(this.nextSegmentIndex++, path, start);
+                for (var path : added) {
+                    var start = this.segments.isEmpty()
+                            ? captureStart != 0L ? captureStart : now
+                            : this.segments.getLast().endNanos != 0L ? this.segments.getLast().endNanos : now;
+                    this.segments.add(new Segment(this.nextSegmentIndex++, path, start));
+                }
 
-                        if (!this.segments.isEmpty()) {
-                            var previous = this.segments.getLast();
+                if (captureStart != 0L) {
+                    for (var segment : this.segments) {
+                        var row = segmentList.get(segment.path.getFileName().toString());
 
-                            if (previous.endNanos == 0L) {
-                                previous.endNanos = start;
-                            }
+                        if (row != null) {
+                            segment.startNanos = captureStart + Math.round(row[0] * 1_000_000_000.0D);
+                            segment.endNanos = captureStart + Math.round(row[1] * 1_000_000_000.0D);
                         }
-
-                        this.segments.add(segment);
                     }
                 }
 
                 this.trimSegments(now);
+
+                if (!this.segments.isEmpty()) {
+                    var newest = this.segments.getLast();
+
+                    try {
+                        var modified = Files.getLastModifiedTime(newest.path).toMillis();
+
+                        if (modified > this.lastSegmentModifiedMillis) {
+                            this.lastSegmentModifiedMillis = modified;
+                            this.lastSegmentGrowthNanos = now;
+                        }
+                    } catch (IOException ignored) {
+                    }
+                }
+
                 this.segmentLock.notifyAll();
             }
+        }
+
+        private Map<String, double[]> readSegmentList() {
+            var path = this.directory.resolve(ClipRecorder.SEGMENT_LIST);
+
+            if (!Files.isRegularFile(path)) {
+                return Map.of();
+            }
+
+            var rows = new HashMap<String, double[]>();
+
+            try {
+                for (var line : Files.readAllLines(path)) {
+                    var parts = line.split(",");
+
+                    if (parts.length < 3) {
+                        continue;
+                    }
+
+                    var name = parts[0].substring(Math.max(parts[0].lastIndexOf('/'), parts[0].lastIndexOf('\\')) + 1);
+
+                    try {
+                        rows.put(name, new double[]{Double.parseDouble(parts[1]), Double.parseDouble(parts[2])});
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            } catch (IOException exception) {
+                return Map.of();
+            }
+
+            return rows;
         }
 
         private void trimSegments(long now) {
@@ -766,8 +921,10 @@ public final class ClipRecorder {
 
                 try {
                     job.future.complete(this.performSave(job.withAudio));
+                } catch (TooEarlyException exception) {
+                    job.future.complete(new SaveResult(null, 0L, 0.0D, null, "cake.clip.too_early"));
                 } catch (Throwable throwable) {
-                    job.future.complete(new SaveResult(null, 0L, 0.0D, String.valueOf(throwable.getMessage())));
+                    job.future.complete(new SaveResult(null, 0L, 0.0D, String.valueOf(throwable.getMessage()), null));
                 }
             }
         }
@@ -780,7 +937,7 @@ public final class ClipRecorder {
 
             synchronized (this.segmentLock) {
                 if (this.segments.size() < 2) {
-                    throw new IOException("Not enough footage yet");
+                    throw new TooEarlyException();
                 }
 
                 completed = new ArrayList<>(this.segments.subList(0, this.segments.size() - 1));
@@ -806,7 +963,7 @@ public final class ClipRecorder {
             }
 
             if (selected.isEmpty()) {
-                throw new IOException("Not enough footage yet");
+                throw new TooEarlyException();
             }
 
             var saveDirectory = Files.createTempDirectory(this.directory.getParent(), ".cake-save-");
@@ -880,7 +1037,7 @@ public final class ClipRecorder {
 
                 var bytes = Files.size(target);
                 var seconds = (endNanos - startNanos) / 1_000_000_000.0D;
-                return new SaveResult(target, bytes, seconds, null);
+                return new SaveResult(target, bytes, seconds, null, null);
             } finally {
                 ClipRecorder.deleteDirectory(saveDirectory);
             }
@@ -978,7 +1135,7 @@ public final class ClipRecorder {
     private static final class Segment {
         private final int index;
         private final Path path;
-        private final long startNanos;
+        private long startNanos;
         private long endNanos;
 
         private Segment(int index, Path path, long startNanos) {
@@ -992,6 +1149,18 @@ public final class ClipRecorder {
     private record SaveJob(CompletableFuture<SaveResult> future, boolean withAudio) {
     }
 
-    private record SaveResult(@Nullable Path path, long bytes, double seconds, @Nullable String error) {
+    private record SaveResult(
+            @Nullable Path path,
+            long bytes,
+            double seconds,
+            @Nullable String error,
+            @Nullable String errorKey
+    ) {
+    }
+
+    private static final class TooEarlyException extends IOException {
+        private TooEarlyException() {
+            super("Not enough footage yet");
+        }
     }
 }
