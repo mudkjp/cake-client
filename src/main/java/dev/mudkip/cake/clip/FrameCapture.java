@@ -36,6 +36,7 @@ public final class FrameCapture {
     private final AtomicBoolean closed;
     private long nextCaptureNanos;
     private volatile long firstFrameNanos;
+    private volatile long lastRenderNanos;
 
     public FrameCapture(RenderTarget target, ClipResolution resolution, ClipFps fps) {
         this.device = RenderSystem.getDevice();
@@ -86,6 +87,10 @@ public final class FrameCapture {
         return this.firstFrameNanos;
     }
 
+    public long getLastRenderNanos() {
+        return this.lastRenderNanos;
+    }
+
     public ArrayBlockingQueue<CapturedFrame> getFrames() {
         return this.frames;
     }
@@ -95,6 +100,8 @@ public final class FrameCapture {
     }
 
     public void onRenderEnd() {
+        this.lastRenderNanos = System.nanoTime();
+
         if (this.closed.get() || this.target.width != this.width || this.target.height != this.height) {
             return;
         }

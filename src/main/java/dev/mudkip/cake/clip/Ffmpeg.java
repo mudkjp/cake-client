@@ -289,12 +289,16 @@ public final class Ffmpeg {
             } else {
                 Ffmpeg.addCandidate(candidates, ClipEncoderPreference.NVENC, encoders, os, quality, fps);
                 Ffmpeg.addCandidate(candidates, ClipEncoderPreference.QSV, encoders, os, quality, fps);
-                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.VAAPI, encoders, os, quality, fps);
                 Ffmpeg.addCandidate(candidates, ClipEncoderPreference.AMF, encoders, os, quality, fps);
             }
         }
 
         candidates.add(Ffmpeg.softwareEncoder(quality, fps));
+
+        if (preference == ClipEncoderPreference.AUTO && os.equals("linux")) {
+            Ffmpeg.addCandidate(candidates, ClipEncoderPreference.VAAPI, encoders, os, quality, fps);
+        }
+
         return candidates;
     }
 
@@ -410,6 +414,7 @@ public final class Ffmpeg {
                 List.of(
                         "-c:v", "libx264",
                         "-preset", "veryfast",
+                        "-tune", "zerolatency",
                         "-profile:v", "high",
                         "-pix_fmt", "yuv420p",
                         "-crf", Integer.toString(quality),
