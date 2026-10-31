@@ -7,6 +7,7 @@ import dev.mudkip.cake.module.ModuleManager;
 import dev.mudkip.cake.server.ServerMappings;
 import dev.mudkip.cake.server.ServerSession;
 import dev.mudkip.cake.ui.HudOverlay;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
@@ -31,6 +32,7 @@ public final class CakeClient {
         HudOverlay.register(this.modules);
         this.modules.load();
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> this.modules.shutdown());
     }
 
     private void tick(Minecraft client) {

@@ -8,6 +8,7 @@ import dev.mudkip.cake.module.modules.FingerprintModule;
 import dev.mudkip.cake.module.modules.FpsModule;
 import dev.mudkip.cake.module.modules.FullBrightModule;
 import dev.mudkip.cake.module.modules.PingModule;
+import dev.mudkip.cake.module.modules.ReplayBufferModule;
 import dev.mudkip.cake.module.modules.ScreenshotCompressionModule;
 import dev.mudkip.cake.module.modules.TimeChangerModule;
 import dev.mudkip.cake.module.modules.ZoomModule;
@@ -75,6 +76,12 @@ public final class ModuleManager {
         }
     }
 
+    public void shutdown() {
+        for (var module : this.modules) {
+            module.onShutdown();
+        }
+    }
+
     private void registerModules(ModuleContext context) {
         this.register(new FullBrightModule(context));
         this.register(new TimeChangerModule(context));
@@ -83,6 +90,7 @@ public final class ModuleManager {
         this.register(new FpsModule(context));
         this.register(new CpsModule(context));
         this.register(new PingModule(context));
+        this.register(new ReplayBufferModule(context));
         this.register(new ZoomModule(context));
         this.register(new FingerprintModule(context));
         this.register(new ScreenshotCompressionModule(context));

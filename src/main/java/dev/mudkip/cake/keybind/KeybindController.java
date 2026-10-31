@@ -3,6 +3,7 @@ package dev.mudkip.cake.keybind;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mudkip.cake.CakeClientKeybinds;
 import dev.mudkip.cake.module.ModuleManager;
+import dev.mudkip.cake.module.modules.ReplayBufferModule;
 import dev.mudkip.cake.ui.HudEditorScreen;
 import dev.mudkip.cake.ui.ModMenuScreen;
 import dev.mudkip.cake.ui.ModuleDetailsScreen;
@@ -28,6 +29,7 @@ public final class KeybindController {
     private final Minecraft client;
     private final ModuleManager modules;
     private final KeyMapping openMenuKey;
+    private final KeyMapping saveClipKey;
     private final Map<String, InputConstants.Key> legacyKeybinds;
     private boolean legacyKeybindsMigrated;
 
@@ -41,11 +43,18 @@ public final class KeybindController {
                 InputConstants.KEY_RSHIFT,
                 CakeClientKeybinds.getCategory()
         );
+        this.saveClipKey = new KeyMapping(
+                "key.cake.save_clip",
+                InputConstants.Type.KEYBOARD,
+                InputConstants.KEY_F9,
+                CakeClientKeybinds.getCategory()
+        );
         this.readLegacyKeybinds();
     }
 
     public void register() {
         KeyMappingHelper.registerKeyMapping(this.openMenuKey);
+        KeyMappingHelper.registerKeyMapping(this.saveClipKey);
 
         for (var module : this.modules.getModules()) {
             KeyMappingHelper.registerKeyMapping(module.getKeyMapping());
@@ -57,6 +66,7 @@ public final class KeybindController {
 
         if (this.client.level == null) {
             KeybindController.drainKey(this.openMenuKey);
+            KeybindController.drainKey(this.saveClipKey);
 
             for (var module : this.modules.getModules()) {
                 KeybindController.drainKey(module.getKeyMapping());
@@ -79,6 +89,14 @@ public final class KeybindController {
                     && module.isAvailable()
                     && this.canToggleFromScreen()) {
                 module.setEnabled(!module.isEnabled());
+            }
+        }
+
+        if (this.saveClipKey.consumeClick() && this.canToggleFromScreen()) {
+            var module = this.modules.getModule(ReplayBufferModule.class);
+
+            if (module != null) {
+                module.saveClip();
             }
         }
     }

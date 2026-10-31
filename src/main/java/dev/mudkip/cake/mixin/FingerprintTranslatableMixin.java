@@ -25,7 +25,8 @@ public abstract class FingerprintTranslatableMixin implements PacketComponentAcc
             )
     )
     private String cake$hideTranslation(Language language, String key, Operation<String> original) {
-        var module = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getActiveModule(FingerprintModule.class);
+        var client = Minecraft.getInstance();
+        var module = client == null ? null : ((MinecraftClientAccess) client).cake$getActiveModule(FingerprintModule.class);
         return module != null && module.shouldHideTranslation(this.cake$fromPacket, key) ? key : original.call(language, key);
     }
 
@@ -37,7 +38,8 @@ public abstract class FingerprintTranslatableMixin implements PacketComponentAcc
             )
     )
     private String cake$hideTranslationWithFallback(Language language, String key, String fallback, Operation<String> original) {
-        var module = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getActiveModule(FingerprintModule.class);
+        var client = Minecraft.getInstance();
+        var module = client == null ? null : ((MinecraftClientAccess) client).cake$getActiveModule(FingerprintModule.class);
         return module != null && module.shouldHideTranslation(this.cake$fromPacket, key)
                 ? fallback
                 : original.call(language, key, fallback);

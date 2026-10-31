@@ -121,6 +121,9 @@ public abstract class ClientModule {
     protected void onTick() {
     }
 
+    protected void onShutdown() {
+    }
+
     protected JsonObject toJson() {
         var json = new JsonObject();
         json.addProperty("enabled", this.requestedEnabled);
