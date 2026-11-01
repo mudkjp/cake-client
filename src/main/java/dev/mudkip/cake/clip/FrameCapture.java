@@ -4,13 +4,11 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.device.GpuDevice;
-import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -19,8 +17,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class FrameCapture {
     private static final Logger LOGGER = LoggerFactory.getLogger(FrameCapture.class);
-    private static final int MAX_BUFFERS = 2;
-    private static final int MAX_FRAMES = 2;
+    private static final int MAX_BUFFERS = 4;
+    private static final int MAX_FRAMES = 4;
 
     private final GpuDevice device;
     private final RenderTarget target;
@@ -28,15 +26,19 @@ public final class FrameCapture {
     private final int height;
     private final int outputWidth;
     private final int outputHeight;
+    private final int frameSize;
     private final long intervalNanos;
-    private final ArrayBlockingQueue<GpuBuffer> freeBuffers;
-    private final ArrayBlockingQueue<ByteBuffer> freeFrames;
+    private final long startedNanos;
     private final ArrayBlockingQueue<CapturedFrame> frames;
-    private final Set<GpuBuffer> inFlight;
     private final AtomicBoolean closed;
+    private volatile ArrayBlockingQueue<GpuBuffer> freeBuffers;
+    private volatile ArrayBlockingQueue<ByteBuffer> freeFrames;
+    private volatile Set<GpuBuffer> inFlight;
+    private volatile int generation;
     private long nextCaptureNanos;
     private volatile long firstFrameNanos;
     private volatile long lastRenderNanos;
+    private volatile long lastCopiedNanos;
 
     public FrameCapture(RenderTarget target, ClipResolution resolution, ClipFps fps) {
         this.device = RenderSystem.getDevice();
@@ -46,25 +48,13 @@ public final class FrameCapture {
         var limitedHeight = resolution.limit(this.height);
         this.outputHeight = Math.max(2, limitedHeight + (limitedHeight & 1));
         this.outputWidth = FrameCapture.evenWidth(this.width, this.height, this.outputHeight);
+        this.frameSize = Math.multiplyExact(this.width, this.height) * 4;
         this.intervalNanos = 1_000_000_000L / fps.getValue();
-        this.freeBuffers = new ArrayBlockingQueue<>(FrameCapture.MAX_BUFFERS);
-        this.freeFrames = new ArrayBlockingQueue<>(FrameCapture.MAX_FRAMES);
+        this.startedNanos = System.nanoTime();
+        this.lastCopiedNanos = this.startedNanos;
         this.frames = new ArrayBlockingQueue<>(FrameCapture.MAX_FRAMES);
-        this.inFlight = Collections.newSetFromMap(new ConcurrentHashMap<>());
         this.closed = new AtomicBoolean();
-        var frameSize = Math.multiplyExact(this.width, this.height) * 4;
-
-        for (var index = 0; index < FrameCapture.MAX_BUFFERS; index++) {
-            this.freeBuffers.add(this.device.createBuffer(
-                    () -> "Cake clip frame",
-                    GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
-                    frameSize
-            ));
-        }
-
-        for (var index = 0; index < FrameCapture.MAX_FRAMES; index++) {
-            this.freeFrames.add(ByteBuffer.allocateDirect(frameSize).order(ByteOrder.nativeOrder()));
-        }
+        this.createPool();
     }
 
     public int getWidth() {
@@ -91,12 +81,77 @@ public final class FrameCapture {
         return this.lastRenderNanos;
     }
 
+    public long getLastCopiedNanos() {
+        return this.lastCopiedNanos;
+    }
+
+    public int getInFlightCount() {
+        return this.inFlight.size();
+    }
+
+    public int getQueuedFrames() {
+        return this.frames.size();
+    }
+
+    public int getFreeFrameCount() {
+        return this.freeFrames.size();
+    }
+
+    public int getFreeBuffers() {
+        return this.freeBuffers.size();
+    }
+
+    public int getFrameSize() {
+        return this.frameSize;
+    }
+
     public ArrayBlockingQueue<CapturedFrame> getFrames() {
         return this.frames;
     }
 
     public ArrayBlockingQueue<ByteBuffer> getFreeFrames() {
         return this.freeFrames;
+    }
+
+    public boolean isStuck() {
+        if (this.closed.get() || this.inFlight.isEmpty()) {
+            return false;
+        }
+
+        if (this.target.width != this.width || this.target.height != this.height) {
+            return false;
+        }
+
+        var now = System.nanoTime();
+
+        if (now - this.lastRenderNanos > 2_000_000_000L) {
+            return false;
+        }
+
+        if (now - this.startedNanos < 5_000_000_000L) {
+            return false;
+        }
+
+        return now - this.lastCopiedNanos > 2_000_000_000L;
+    }
+
+    public void recover() {
+        if (this.closed.get()) {
+            return;
+        }
+
+        this.generation++;
+        GpuBuffer buffer;
+
+        while ((buffer = this.freeBuffers.poll()) != null) {
+            buffer.close();
+        }
+
+        this.createPool();
+        this.frames.clear();
+        this.nextCaptureNanos = 0L;
+        this.lastCopiedNanos = System.nanoTime();
+        LOGGER.warn("Reset the clip capture buffer pool");
     }
 
     public void onRenderEnd() {
@@ -138,9 +193,16 @@ public final class FrameCapture {
         }
 
         this.inFlight.add(buffer);
+        var captureGeneration = this.generation;
 
         try {
-            this.device.createCommandEncoder().copyTextureToBuffer(texture, buffer, 0L, () -> this.onCopied(buffer, frame), 0);
+            this.device.createCommandEncoder().copyTextureToBuffer(
+                    texture,
+                    buffer,
+                    0L,
+                    () -> this.onCopied(buffer, frame, captureGeneration),
+                    0
+            );
         } catch (Throwable throwable) {
             this.inFlight.remove(buffer);
             this.freeBuffers.add(buffer);
@@ -163,14 +225,42 @@ public final class FrameCapture {
         this.frames.clear();
     }
 
-    private void onCopied(GpuBuffer buffer, ByteBuffer frame) {
-        this.inFlight.remove(buffer);
+    private void createPool() {
+        var buffers = new ArrayBlockingQueue<GpuBuffer>(FrameCapture.MAX_BUFFERS);
+        var frameBuffers = new ArrayBlockingQueue<ByteBuffer>(FrameCapture.MAX_FRAMES);
 
+        for (var index = 0; index < FrameCapture.MAX_BUFFERS; index++) {
+            buffers.add(this.device.createBuffer(
+                    () -> "Cake clip frame",
+                    GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
+                    this.frameSize
+            ));
+        }
+
+        for (var index = 0; index < FrameCapture.MAX_FRAMES; index++) {
+            frameBuffers.add(ByteBuffer.allocateDirect(this.frameSize).order(ByteOrder.nativeOrder()));
+        }
+
+        this.freeBuffers = buffers;
+        this.freeFrames = frameBuffers;
+        this.inFlight = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    }
+
+    private void onCopied(GpuBuffer buffer, ByteBuffer frame, int captureGeneration) {
         if (this.closed.get()) {
             buffer.close();
-            this.freeFrames.add(frame);
+            this.freeFrames.offer(frame);
             return;
         }
+
+        if (captureGeneration != this.generation) {
+            buffer.close();
+            this.freeFrames.offer(frame);
+            return;
+        }
+
+        this.inFlight.remove(buffer);
+        this.lastCopiedNanos = System.nanoTime();
 
         try (var view = buffer.map(true, false)) {
             frame.clear();

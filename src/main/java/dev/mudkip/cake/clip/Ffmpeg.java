@@ -65,8 +65,14 @@ public final class Ffmpeg {
         return Ffmpeg.download(notifier).toString();
     }
 
-    public static ClipEncoder detect(String command, ClipEncoderPreference preference, int quality, int fps) throws Exception {
-        var key = command + "|" + preference.name() + "|" + quality + "|" + fps;
+    public static ClipEncoder detect(
+            String command,
+            ClipEncoderPreference preference,
+            ClipCodec codec,
+            int quality,
+            int fps
+    ) throws Exception {
+        var key = command + "|" + preference.name() + "|" + codec.name() + "|" + quality + "|" + fps;
         var cached = Ffmpeg.ENCODER_CACHE.get(key);
 
         if (cached != null) {
@@ -74,14 +80,14 @@ public final class Ffmpeg {
         }
 
         var encoders = Ffmpeg.encoders(command);
-        var candidates = Ffmpeg.candidates(preference, encoders, quality, fps);
+        var candidates = Ffmpeg.candidates(preference, encoders, codec, quality, fps);
         Exception lastFailure = null;
 
         for (var candidate : candidates) {
             try {
                 Ffmpeg.testEncoder(command, candidate, quality, fps);
                 Ffmpeg.ENCODER_CACHE.put(key, candidate);
-                LOGGER.info("Using clip encoder {}", candidate.name());
+                LOGGER.info("Using clip encoder {} ({})", candidate.name(), candidate.codec());
                 return candidate;
             } catch (Exception exception) {
                 lastFailure = exception;
@@ -90,10 +96,10 @@ public final class Ffmpeg {
         }
 
         if (lastFailure != null) {
-            throw new IOException("No usable H.264 encoder found", lastFailure);
+            throw new IOException("No usable video encoder found", lastFailure);
         }
 
-        throw new IOException("No usable H.264 encoder found");
+        throw new IOException("No usable video encoder found");
     }
 
     public static ProcessBuilder builder(String command, List<String> arguments) {
@@ -257,7 +263,15 @@ public final class Ffmpeg {
                         var parts = trimmed.split("\\s+");
 
                         for (var part : parts) {
-                            if (part.startsWith("h264_") || part.equals("libx264") || part.equals("libopenh264")) {
+                            if (part.startsWith("h264_")
+                                    || part.startsWith("hevc_")
+                                    || part.startsWith("av1_")
+                                    || part.equals("libx264")
+                                    || part.equals("libx265")
+                                    || part.equals("libsvtav1")
+                                    || part.equals("libaom-av1")
+                                    || part.equals("librav1e")
+                                    || part.equals("libopenh264")) {
                                 names.add(part);
                             }
                         }
@@ -271,6 +285,7 @@ public final class Ffmpeg {
     private static List<ClipEncoder> candidates(
             ClipEncoderPreference preference,
             Set<String> encoders,
+            ClipCodec codec,
             int quality,
             int fps
     ) {
@@ -278,52 +293,117 @@ public final class Ffmpeg {
         var os = Ffmpeg.os();
 
         if (preference != ClipEncoderPreference.AUTO && preference != ClipEncoderPreference.SOFTWARE) {
-            Ffmpeg.addCandidate(candidates, preference, encoders, os, quality, fps);
+            Ffmpeg.addCandidate(candidates, preference, encoders, codec, os, quality, fps);
         } else if (preference == ClipEncoderPreference.AUTO) {
             if (os.equals("windows")) {
-                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.NVENC, encoders, os, quality, fps);
-                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.QSV, encoders, os, quality, fps);
-                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.AMF, encoders, os, quality, fps);
+                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.NVENC, encoders, codec, os, quality, fps);
+                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.QSV, encoders, codec, os, quality, fps);
+                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.AMF, encoders, codec, os, quality, fps);
             } else if (os.equals("macos")) {
-                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.VIDEOTOOLBOX, encoders, os, quality, fps);
+                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.VIDEOTOOLBOX, encoders, codec, os, quality, fps);
             } else {
-                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.NVENC, encoders, os, quality, fps);
-                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.QSV, encoders, os, quality, fps);
-                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.AMF, encoders, os, quality, fps);
+                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.NVENC, encoders, codec, os, quality, fps);
+                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.QSV, encoders, codec, os, quality, fps);
+                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.AMF, encoders, codec, os, quality, fps);
+                Ffmpeg.addCandidate(candidates, ClipEncoderPreference.VAAPI, encoders, codec, os, quality, fps);
             }
         }
 
-        candidates.add(Ffmpeg.softwareEncoder(quality, fps));
-
-        if (preference == ClipEncoderPreference.AUTO && os.equals("linux")) {
-            Ffmpeg.addCandidate(candidates, ClipEncoderPreference.VAAPI, encoders, os, quality, fps);
+        if (codec.isAv1()) {
+            Ffmpeg.addAv1Software(candidates, encoders, codec, quality, fps);
+        } else {
+            candidates.add(Ffmpeg.softwareEncoder(codec, quality, fps));
         }
 
         return candidates;
+    }
+
+    private static void addAv1Software(
+            List<ClipEncoder> candidates,
+            Set<String> encoders,
+            ClipCodec codec,
+            int quality,
+            int fps
+    ) {
+        if (encoders.contains("libsvtav1")) {
+            candidates.add(new ClipEncoder(
+                    codec,
+                    "SVT-AV1",
+                    List.of(),
+                    List.of(),
+                    List.of(
+                            "-c:v", "libsvtav1",
+                            "-preset", "8",
+                            "-crf", Integer.toString(quality),
+                            "-g", Integer.toString(fps),
+                            "-pix_fmt", "yuv420p",
+                            "-svtav1-params", "pred-struct=1"
+                    )
+            ));
+        }
+
+        if (encoders.contains("libaom-av1")) {
+            candidates.add(new ClipEncoder(
+                    codec,
+                    "aom-av1",
+                    List.of(),
+                    List.of(),
+                    List.of(
+                            "-c:v", "libaom-av1",
+                            "-cpu-used", "8",
+                            "-crf", Integer.toString(quality),
+                            "-b:v", "0",
+                            "-g", Integer.toString(fps),
+                            "-pix_fmt", "yuv420p"
+                    )
+            ));
+        }
+
+        if (encoders.contains("librav1e")) {
+            candidates.add(new ClipEncoder(
+                    codec,
+                    "rav1e",
+                    List.of(),
+                    List.of(),
+                    List.of(
+                            "-c:v", "librav1e",
+                            "-speed", "10",
+                            "-qp", Integer.toString(quality),
+                            "-g", Integer.toString(fps),
+                            "-pix_fmt", "yuv420p"
+                    )
+            ));
+        }
     }
 
     private static void addCandidate(
             List<ClipEncoder> candidates,
             ClipEncoderPreference preference,
             Set<String> encoders,
+            ClipCodec codec,
             String os,
             int quality,
             int fps
     ) {
+        var profile = codec.profile();
+
         switch (preference) {
             case NVENC -> {
-                if (encoders.contains("h264_nvenc")) {
+                var name = codec.encoderName("nvenc");
+
+                if (encoders.contains(name)) {
                     candidates.add(new ClipEncoder(
+                            codec,
                             "NVENC",
                             List.of(),
                             List.of(),
                             List.of(
-                                    "-c:v", "h264_nvenc",
+                                    "-c:v", name,
                                     "-preset", "p5",
                                     "-rc", "vbr",
                                     "-cq", Integer.toString(quality),
                                     "-b:v", "0",
-                                    "-profile:v", "high",
+                                    "-profile:v", profile,
                                     "-pix_fmt", "yuv420p",
                                     "-g", Integer.toString(fps)
                             )
@@ -331,16 +411,19 @@ public final class Ffmpeg {
                 }
             }
             case QSV -> {
-                if (encoders.contains("h264_qsv")) {
+                var name = codec.encoderName("qsv");
+
+                if (encoders.contains(name)) {
                     candidates.add(new ClipEncoder(
+                            codec,
                             "Quick Sync",
                             List.of(),
                             List.of(),
                             List.of(
-                                    "-c:v", "h264_qsv",
+                                    "-c:v", name,
                                     "-preset", "veryfast",
                                     "-global_quality", Integer.toString(quality),
-                                    "-profile:v", "high",
+                                    "-profile:v", profile,
                                     "-pix_fmt", "yuv420p",
                                     "-g", Integer.toString(fps)
                             )
@@ -348,13 +431,16 @@ public final class Ffmpeg {
                 }
             }
             case AMF -> {
-                if (encoders.contains("h264_amf")) {
+                var name = codec.encoderName("amf");
+
+                if (encoders.contains(name)) {
                     candidates.add(new ClipEncoder(
+                            codec,
                             "AMF",
                             List.of(),
                             List.of(),
                             List.of(
-                                    "-c:v", "h264_amf",
+                                    "-c:v", name,
                                     "-rc", "cqp",
                                     "-qp_i", Integer.toString(quality),
                                     "-qp_p", Integer.toString(quality),
@@ -366,18 +452,21 @@ public final class Ffmpeg {
                 }
             }
             case VAAPI -> {
-                if (encoders.contains("h264_vaapi") && os.equals("linux")) {
+                var name = codec.encoderName("vaapi");
+
+                if (encoders.contains(name) && os.equals("linux")) {
                     for (var node : List.of("/dev/dri/renderD128", "/dev/dri/renderD129", "/dev/dri/renderD130", "/dev/dri/renderD131")) {
                         if (Files.exists(Path.of(node))) {
                             candidates.add(new ClipEncoder(
+                                    codec,
                                     "VAAPI",
                                     List.of("-vaapi_device", node),
                                     List.of("format=nv12", "hwupload"),
                                     List.of(
-                                            "-c:v", "h264_vaapi",
+                                            "-c:v", name,
                                             "-rc_mode", "CQP",
                                             "-qp", Integer.toString(quality),
-                                            "-profile:v", "high",
+                                            "-profile:v", profile,
                                             "-g", Integer.toString(fps)
                                     )
                             ));
@@ -386,15 +475,18 @@ public final class Ffmpeg {
                 }
             }
             case VIDEOTOOLBOX -> {
-                if (encoders.contains("h264_videotoolbox") && os.equals("macos")) {
+                var name = codec.encoderName("videotoolbox");
+
+                if (encoders.contains(name) && os.equals("macos")) {
                     candidates.add(new ClipEncoder(
+                            codec,
                             "VideoToolbox",
                             List.of(),
                             List.of(),
                             List.of(
-                                    "-c:v", "h264_videotoolbox",
+                                    "-c:v", name,
                                     "-q:v", Integer.toString(Math.clamp(100 - quality * 2, 1, 100)),
-                                    "-profile:v", "high",
+                                    "-profile:v", profile,
                                     "-pix_fmt", "yuv420p",
                                     "-g", Integer.toString(fps)
                             )
@@ -406,8 +498,29 @@ public final class Ffmpeg {
         }
     }
 
-    private static ClipEncoder softwareEncoder(int quality, int fps) {
+    private static ClipEncoder softwareEncoder(ClipCodec codec, int quality, int fps) {
+        if (codec.isHevc()) {
+            return new ClipEncoder(
+                    codec,
+                    "x265",
+                    List.of(),
+                    List.of(),
+                    List.of(
+                            "-c:v", "libx265",
+                            "-preset", "veryfast",
+                            "-tune", "zerolatency",
+                            "-profile:v", "main",
+                            "-pix_fmt", "yuv420p",
+                            "-crf", Integer.toString(quality),
+                            "-g", Integer.toString(fps),
+                            "-keyint_min", Integer.toString(fps),
+                            "-x265-params", "scenecut=0"
+                    )
+            );
+        }
+
         return new ClipEncoder(
+                codec,
                 "x264",
                 List.of(),
                 List.of(),

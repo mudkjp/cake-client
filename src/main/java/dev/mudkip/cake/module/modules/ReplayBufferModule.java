@@ -1,6 +1,7 @@
 package dev.mudkip.cake.module.modules;
 
 import dev.mudkip.cake.clip.ClipAudioTap;
+import dev.mudkip.cake.clip.ClipCodec;
 import dev.mudkip.cake.clip.ClipEncoderPreference;
 import dev.mudkip.cake.clip.ClipFps;
 import dev.mudkip.cake.clip.ClipRecorder;
@@ -16,6 +17,7 @@ import dev.mudkip.cake.module.setting.StringSetting;
 
 public final class ReplayBufferModule extends ClientModule {
     private final IntSetting duration;
+    private final EnumSetting<ClipCodec> codec;
     private final EnumSetting<ClipFps> fps;
     private final EnumSetting<ClipResolution> resolution;
     private final IntSetting quality;
@@ -28,6 +30,7 @@ public final class ReplayBufferModule extends ClientModule {
     public ReplayBufferModule(ModuleContext context) {
         super(ModuleDefinition.of("replaybuffer", ModuleCategory.MISC), context);
         this.duration = this.intSetting("duration", 5, 180, 30, "s");
+        this.codec = this.enumSetting("codec", ClipCodec.class, ClipCodec::getDisplayName, ClipCodec.HEVC);
         this.fps = this.enumSetting("fps", ClipFps.class, ClipFps::getDisplayName, ClipFps.FPS60);
         this.resolution = this.enumSetting(
                 "resolution",
@@ -50,6 +53,10 @@ public final class ReplayBufferModule extends ClientModule {
 
     public int getDuration() {
         return this.duration.getValue();
+    }
+
+    public ClipCodec getCodec() {
+        return this.codec.getValue();
     }
 
     public ClipFps getFps() {

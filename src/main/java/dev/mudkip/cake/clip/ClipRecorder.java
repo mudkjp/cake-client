@@ -54,11 +54,12 @@ public final class ClipRecorder {
     private @Nullable Session session;
     private @Nullable ClipFps lastFps;
     private @Nullable ClipResolution lastResolution;
+    private @Nullable ClipCodec lastCodec;
     private @Nullable ClipEncoderPreference lastEncoder;
     private @Nullable String lastFfmpegPath;
     private int lastQuality;
     private boolean audioFailureReported;
-    private boolean softwareFallback;
+    private int stallAttempts;
     private long settingsRestartAtNanos;
     private int prepareGeneration;
 
@@ -66,6 +67,7 @@ public final class ClipRecorder {
         this.client = client;
         this.module = module;
         this.audio = audio;
+        this.cleanStaleDirectories();
     }
 
     public static void onRenderEnd() {
@@ -82,7 +84,7 @@ public final class ClipRecorder {
         this.restartPending = false;
         this.settingsRestartAtNanos = 0L;
         this.audioFailureReported = false;
-        this.softwareFallback = false;
+        this.stallAttempts = 0;
         this.audio.setEnabled(enabled && this.module.isAudioEnabled());
 
         if (!enabled) {
@@ -145,6 +147,18 @@ public final class ClipRecorder {
             return;
         }
 
+        if (currentSession != null
+                && this.stallAttempts > 0
+                && System.nanoTime() - currentSession.getStartedNanos() > 60_000_000_000L) {
+            this.stallAttempts = 0;
+        }
+
+        if (currentSession != null && currentSession.isCaptureStuck()) {
+            if (currentSession.recoverCapture()) {
+                return;
+            }
+        }
+
         if (currentSession != null && currentSession.isStalled()) {
             this.handleStall(currentSession);
             return;
@@ -176,20 +190,30 @@ public final class ClipRecorder {
     }
 
     private void handleStall(Session current) {
-        LOGGER.warn("Clip recorder stalled with encoder {}", current.encoder.name());
+        var now = System.nanoTime();
+        var capture = current.capture;
+        LOGGER.warn(
+                "Clip recorder stalled with encoder {} (frame write {}s ago, segment {}s ago, capture {}s ago, {} in flight)",
+                current.encoder.name(),
+                (now - current.lastFrameWrittenNanos) / 1_000_000_000.0D,
+                (now - current.lastNewSegmentNanos) / 1_000_000_000.0D,
+                capture == null ? -1.0D : (now - capture.getLastCopiedNanos()) / 1_000_000_000.0D,
+                capture == null ? -1 : capture.getInFlightCount()
+        );
+        current.logDiagnostics();
         current.abort();
         this.session = null;
         ClipRecorder.activeSession = null;
 
-        if (this.softwareFallback) {
+        this.stallAttempts++;
+
+        if (this.stallAttempts >= 5) {
             this.failed = true;
             this.notify(Component.translatable("cake.clip.recorder_stopped"));
             return;
         }
 
-        this.softwareFallback = true;
         this.restartPending = true;
-        this.notify(Component.translatable("cake.clip.encoder_stalled"));
     }
 
     public void settingsChanged() {
@@ -199,15 +223,12 @@ public final class ClipRecorder {
             return;
         }
 
+        this.stallAttempts = 0;
         var audioEnabled = this.module.isAudioEnabled();
 
         if (this.audio.isEnabled() != audioEnabled) {
             this.audio.setEnabled(audioEnabled);
             this.audioFailureReported = false;
-        }
-
-        if (this.lastEncoder != this.module.getEncoderPreference()) {
-            this.softwareFallback = false;
         }
 
         if (this.preparing) {
@@ -229,12 +250,14 @@ public final class ClipRecorder {
     private boolean immediateVideoSettingsChanged() {
         return this.lastFps != this.module.getFps()
                 || this.lastResolution != this.module.getResolution()
+                || this.lastCodec != this.module.getCodec()
                 || this.lastEncoder != this.module.getEncoderPreference();
     }
 
     private void rememberSettings() {
         this.lastFps = this.module.getFps();
         this.lastResolution = this.module.getResolution();
+        this.lastCodec = this.module.getCodec();
         this.lastEncoder = this.module.getEncoderPreference();
         this.lastQuality = this.module.getQuality();
         this.lastFfmpegPath = this.module.getFfmpegPath();
@@ -252,7 +275,8 @@ public final class ClipRecorder {
         this.preparing = true;
         var generation = ++this.prepareGeneration;
         var configured = this.module.getFfmpegPath();
-        var preference = this.softwareFallback ? ClipEncoderPreference.SOFTWARE : this.module.getEncoderPreference();
+        var preference = this.module.getEncoderPreference();
+        var codec = this.module.getCodec();
         var quality = this.module.getQuality();
         var fps = this.module.getFps().getValue();
 
@@ -260,7 +284,7 @@ public final class ClipRecorder {
                 .supplyAsync(() -> {
                     try {
                         var command = Ffmpeg.resolve(configured, this::notify);
-                        var encoder = Ffmpeg.detect(command, preference, quality, fps);
+                        var encoder = Ffmpeg.detect(command, preference, codec, quality, fps);
                         return new Prepared(command, encoder);
                     } catch (Exception exception) {
                         throw new CompletionException(exception);
@@ -300,9 +324,8 @@ public final class ClipRecorder {
     private void startSession(Prepared prepared) throws IOException {
         var clips = FabricLoader.getInstance().getGameDir().resolve("clips");
         Files.createDirectories(clips);
-        ClipRecorder.cleanStaleDirectories(clips);
 
-        var directory = Files.createTempDirectory(clips, ".cake-clip-");
+        var directory = ClipRecorder.createSessionDirectory(clips);
         var target = this.client.gameRenderer.mainRenderTarget();
 
         if (target.width <= 0 || target.height <= 0) {
@@ -313,6 +336,7 @@ public final class ClipRecorder {
                 this.client,
                 this.module,
                 this.audio,
+                clips,
                 directory,
                 prepared.command(),
                 prepared.encoder(),
@@ -335,7 +359,11 @@ public final class ClipRecorder {
         this.rememberSettings();
         this.audio.setEnabled(this.module.isAudioEnabled());
         ClipRecorder.activeSession = created;
-        LOGGER.info("Clip recorder started with {}", prepared.encoder().name());
+        LOGGER.info(
+                "Clip recorder started with {} ({})",
+                prepared.encoder().name(),
+                prepared.encoder().codec()
+        );
     }
 
     private void stopSession() {
@@ -350,6 +378,37 @@ public final class ClipRecorder {
 
     private void notify(Component message) {
         this.client.execute(() -> this.client.showDebugChat(message));
+    }
+
+    private void cleanStaleDirectories() {
+        try {
+            var clips = FabricLoader.getInstance().getGameDir().resolve("clips");
+            Files.createDirectories(clips);
+            ClipRecorder.cleanStaleDirectories(clips);
+        } catch (IOException exception) {
+            LOGGER.debug("Could not clean old clip directories", exception);
+        }
+
+        try {
+            ClipRecorder.cleanStaleDirectories(ClipRecorder.tempRoot());
+        } catch (IOException exception) {
+            LOGGER.debug("Could not clean old clip temp directories", exception);
+        }
+    }
+
+    private static Path tempRoot() throws IOException {
+        var root = Path.of(System.getProperty("java.io.tmpdir"), "cake-client");
+        Files.createDirectories(root);
+        return root;
+    }
+
+    private static Path createSessionDirectory(Path clips) throws IOException {
+        try {
+            return Files.createTempDirectory(ClipRecorder.tempRoot(), ".cake-clip-");
+        } catch (IOException exception) {
+            LOGGER.warn("Could not use the system temp directory for clip segments", exception);
+            return Files.createTempDirectory(clips, ".cake-clip-");
+        }
     }
 
     private static void cleanStaleDirectories(Path clips) {
@@ -389,6 +448,7 @@ public final class ClipRecorder {
         private final Minecraft client;
         private final ReplayBufferModule module;
         private final ClipAudioTap audio;
+        private final Path clips;
         private final Path directory;
         private final String command;
         private final ClipEncoder encoder;
@@ -401,20 +461,22 @@ public final class ClipRecorder {
         private @Nullable FrameCapture capture;
         private @Nullable Thread writerThread;
         private @Nullable Thread watcherThread;
-        private @Nullable Thread stderrThread;
         private @Nullable Thread saveThread;
         private @Nullable WritableByteChannel frameChannel;
+        private @Nullable Path processLog;
         private volatile boolean running;
         private volatile boolean saveRunning;
         private int nextSegmentIndex;
         private final long startedNanos;
-        private long lastSegmentGrowthNanos;
-        private long lastSegmentModifiedMillis;
+        private volatile long lastFrameWrittenNanos;
+        private volatile long lastNewSegmentNanos;
+        private int captureRecoveries;
 
         private Session(
                 Minecraft client,
                 ReplayBufferModule module,
                 ClipAudioTap audio,
+                Path clips,
                 Path directory,
                 String command,
                 ClipEncoder encoder,
@@ -423,6 +485,7 @@ public final class ClipRecorder {
             this.client = client;
             this.module = module;
             this.audio = audio;
+            this.clips = clips;
             this.directory = directory;
             this.command = command;
             this.encoder = encoder;
@@ -434,27 +497,38 @@ public final class ClipRecorder {
             this.running = true;
             this.saveRunning = true;
             this.startedNanos = System.nanoTime();
-            this.lastSegmentGrowthNanos = this.startedNanos;
+            this.lastFrameWrittenNanos = this.startedNanos;
+            this.lastNewSegmentNanos = this.startedNanos;
         }
 
         private void start() throws IOException {
             this.capture = new FrameCapture(this.target, this.module.getResolution(), this.module.getFps());
             var arguments = this.createArguments();
+            this.processLog = this.directory.resolve("ffmpeg.log");
+            var builder = new ProcessBuilder(arguments);
+            builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            builder.redirectError(ProcessBuilder.Redirect.to(this.processLog.toFile()));
 
             try {
-                this.process = new ProcessBuilder(arguments).redirectErrorStream(true).start();
+                this.process = builder.start();
             } catch (IOException exception) {
                 this.capture.close();
                 throw exception;
             }
 
+            LOGGER.info(
+                    "Clip capture {}x{} -> {}x{} at {} fps, ffmpeg pid {}",
+                    this.capture.getWidth(),
+                    this.capture.getHeight(),
+                    this.capture.getOutputWidth(),
+                    this.capture.getOutputHeight(),
+                    this.module.getFps().getValue(),
+                    this.process.pid()
+            );
             this.frameChannel = Channels.newChannel(this.process.getOutputStream());
             this.writerThread = new Thread(this::writeFrames, "Cake clip writer");
             this.writerThread.setDaemon(true);
             this.writerThread.start();
-            this.stderrThread = new Thread(this::readProcessOutput, "Cake clip ffmpeg");
-            this.stderrThread.setDaemon(true);
-            this.stderrThread.start();
             this.watcherThread = new Thread(this::watchSegments, "Cake clip segments");
             this.watcherThread.setDaemon(true);
             this.watcherThread.start();
@@ -468,9 +542,78 @@ public final class ClipRecorder {
             return this.running && current != null && current.isAlive();
         }
 
+        private long getStartedNanos() {
+            return this.startedNanos;
+        }
+
         private boolean isResized() {
             var current = this.capture;
             return current != null && (this.target.width != current.getWidth() || this.target.height != current.getHeight());
+        }
+
+        private boolean isCaptureStuck() {
+            var current = this.capture;
+            return current != null && current.isStuck();
+        }
+
+        private boolean recoverCapture() {
+            var current = this.capture;
+
+            if (current == null || ++this.captureRecoveries > 5) {
+                return false;
+            }
+
+            current.recover();
+            return true;
+        }
+
+        private void logDiagnostics() {
+            var writer = this.writerThread;
+
+            if (writer != null) {
+                LOGGER.warn("Clip writer thread state: {}", writer.getState());
+
+                for (var frame : writer.getStackTrace()) {
+                    LOGGER.warn("Clip writer at {}", frame);
+                }
+            }
+
+            var current = this.process;
+
+            if (current != null) {
+                LOGGER.warn("Clip ffmpeg pid {} alive {}", current.pid(), current.isAlive());
+
+                if (current.isAlive()) {
+                    ClipRecorder.logProcessState(current.pid());
+                }
+            }
+
+            var currentCapture = this.capture;
+
+            if (currentCapture != null) {
+                LOGGER.warn(
+                        "Clip capture queues: frames {}, free frames {}, free buffers {}, in flight {}",
+                        currentCapture.getQueuedFrames(),
+                        currentCapture.getFreeFrameCount(),
+                        currentCapture.getFreeBuffers(),
+                        currentCapture.getInFlightCount()
+                );
+            }
+
+            var log = this.processLog;
+
+            if (log != null) {
+                try {
+                    var lines = Files.readAllLines(log);
+                    var from = Math.max(0, lines.size() - 20);
+
+                    for (var index = from; index < lines.size(); index++) {
+                        LOGGER.warn("Clip ffmpeg: {}", lines.get(index));
+                    }
+                } catch (IOException exception) {
+                    LOGGER.debug("Could not read the clip ffmpeg log", exception);
+                }
+            }
         }
 
         private boolean isStalled() {
@@ -494,7 +637,8 @@ public final class ClipRecorder {
                 return false;
             }
 
-            return now - this.lastSegmentGrowthNanos > 5_000_000_000L;
+            return now - this.lastFrameWrittenNanos > 5_000_000_000L
+                    && now - this.lastNewSegmentNanos > 15_000_000_000L;
         }
 
         private void captureFrame() {
@@ -554,10 +698,6 @@ public final class ClipRecorder {
 
             if (this.saveThread != null) {
                 this.saveThread.interrupt();
-            }
-
-            if (this.stderrThread != null) {
-                this.stderrThread.interrupt();
             }
 
             if (this.frameChannel != null) {
@@ -630,16 +770,6 @@ public final class ClipRecorder {
                 }
             }
 
-            if (this.stderrThread != null) {
-                this.stderrThread.interrupt();
-
-                try {
-                    this.stderrThread.join(500L);
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-
             if (this.saveThread == null || !this.saveThread.isAlive()) {
                 ClipRecorder.deleteDirectory(this.directory);
             }
@@ -659,26 +789,36 @@ public final class ClipRecorder {
             arguments.add("-y");
             arguments.addAll(this.encoder.inputArgs());
             arguments.add("-f");
-            arguments.add("pam_pipe");
+            arguments.add("rawvideo");
+            arguments.add("-pix_fmt");
+            arguments.add("rgba");
+            arguments.add("-s");
+            arguments.add(captureWidth + "x" + captureHeight);
             arguments.add("-framerate");
             arguments.add(Integer.toString(this.module.getFps().getValue()));
-            arguments.add("-use_wallclock_as_timestamps");
-            arguments.add("1");
             arguments.add("-i");
             arguments.add("pipe:0");
             var filters = new ArrayList<String>();
             filters.add("vflip");
+            var scaled = outputWidth != captureWidth || outputHeight != captureHeight;
 
-            if (outputWidth != captureWidth || outputHeight != captureHeight) {
-                filters.add("scale=" + outputWidth + ":" + outputHeight + ":flags=bicubic");
+            if (this.encoder.name().equals("VAAPI")) {
+                filters.addAll(this.encoder.filterArgs());
+
+                if (scaled) {
+                    filters.add("scale_vaapi=" + outputWidth + ":" + outputHeight);
+                }
+            } else {
+                if (scaled) {
+                    filters.add("scale=" + outputWidth + ":" + outputHeight + ":flags=bilinear");
+                }
+
+                filters.addAll(this.encoder.filterArgs());
             }
 
-            filters.addAll(this.encoder.filterArgs());
             arguments.add("-vf");
             arguments.add(String.join(",", filters));
             arguments.addAll(this.encoder.outputArgs());
-            arguments.add("-force_key_frames");
-            arguments.add("expr:gte(t,n_forced*" + ClipRecorder.SEGMENT_SECONDS + ")");
             arguments.add("-fps_mode");
             arguments.add("vfr");
             arguments.add("-f");
@@ -693,6 +833,12 @@ public final class ClipRecorder {
             arguments.add(this.directory.resolve(ClipRecorder.SEGMENT_LIST).toString());
             arguments.add("-segment_list_type");
             arguments.add("csv");
+
+            if (this.encoder.codec() == ClipCodec.HEVC) {
+                arguments.add("-tag:v");
+                arguments.add("hvc1");
+            }
+
             arguments.add(this.directory.resolve(ClipRecorder.SEGMENT_PATTERN).toString());
             return arguments;
         }
@@ -705,7 +851,6 @@ public final class ClipRecorder {
                 return;
             }
 
-            var header = ClipRecorder.pamHeader(currentCapture.getWidth(), currentCapture.getHeight());
             var frames = currentCapture.getFrames();
 
             while (this.running || !frames.isEmpty()) {
@@ -723,11 +868,11 @@ public final class ClipRecorder {
                 }
 
                 try {
-                    ClipRecorder.writeFully(channel, ByteBuffer.wrap(header));
                     var data = frame.data();
                     data.position(0);
-                    data.limit(currentCapture.getWidth() * currentCapture.getHeight() * 4);
+                    data.limit(currentCapture.getFrameSize());
                     ClipRecorder.writeFully(channel, data);
+                    this.lastFrameWrittenNanos = System.nanoTime();
                 } catch (IOException exception) {
                     LOGGER.warn("Clip encoder pipe closed", exception);
                     this.running = false;
@@ -735,27 +880,6 @@ public final class ClipRecorder {
                     frame.data().clear();
                     currentCapture.getFreeFrames().offer(frame.data());
                 }
-            }
-        }
-
-        private void readProcessOutput() {
-            var current = this.process;
-
-            if (current == null) {
-                return;
-            }
-
-            try (var reader = current.inputReader()) {
-                String line;
-
-                while ((line = reader.readLine()) != null) {
-                    if (line.contains("Error") || line.contains("error") || line.contains("failed") || line.contains("Failed")) {
-                        LOGGER.warn("Clip encoder: {}", line);
-                    } else {
-                        LOGGER.debug("Clip encoder: {}", line);
-                    }
-                }
-            } catch (IOException ignored) {
             }
         }
 
@@ -818,6 +942,10 @@ public final class ClipRecorder {
                     this.segments.add(new Segment(this.nextSegmentIndex++, path, start));
                 }
 
+                if (!added.isEmpty()) {
+                    this.lastNewSegmentNanos = now;
+                }
+
                 if (captureStart != 0L) {
                     for (var segment : this.segments) {
                         var row = segmentList.get(segment.path.getFileName().toString());
@@ -830,21 +958,6 @@ public final class ClipRecorder {
                 }
 
                 this.trimSegments(now);
-
-                if (!this.segments.isEmpty()) {
-                    var newest = this.segments.getLast();
-
-                    try {
-                        var modified = Files.getLastModifiedTime(newest.path).toMillis();
-
-                        if (modified > this.lastSegmentModifiedMillis) {
-                            this.lastSegmentModifiedMillis = modified;
-                            this.lastSegmentGrowthNanos = now;
-                        }
-                    } catch (IOException ignored) {
-                    }
-                }
-
                 this.segmentLock.notifyAll();
             }
         }
@@ -1020,9 +1133,8 @@ public final class ClipRecorder {
                     Files.move(videoFile, outputFile, StandardCopyOption.REPLACE_EXISTING);
                 }
 
-                var clips = this.directory.getParent();
                 var name = Util.getFilenameFormattedDateTime();
-                var target = clips.resolve(name + ".mp4");
+                var target = this.clips.resolve(name + ".mp4");
                 var suffix = 1;
 
                 while (Files.exists(target)) {
@@ -1099,9 +1211,22 @@ public final class ClipRecorder {
         }
     }
 
-    private static byte[] pamHeader(int width, int height) {
-        return ("P7\nWIDTH " + width + "\nHEIGHT " + height + "\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n")
-                .getBytes(StandardCharsets.US_ASCII);
+    private static void logProcessState(long pid) {
+        if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("linux")) {
+            return;
+        }
+
+        try {
+            LOGGER.warn("Clip ffmpeg stat: {}", Files.readString(Path.of("/proc/" + pid + "/stat")).trim());
+        } catch (IOException exception) {
+            LOGGER.debug("Could not read the clip ffmpeg stat", exception);
+        }
+
+        try {
+            LOGGER.warn("Clip ffmpeg wchan: {}", Files.readString(Path.of("/proc/" + pid + "/wchan")).trim());
+        } catch (IOException exception) {
+            LOGGER.debug("Could not read the clip ffmpeg wchan", exception);
+        }
     }
 
     private static void writeFully(WritableByteChannel channel, ByteBuffer buffer) throws IOException {
