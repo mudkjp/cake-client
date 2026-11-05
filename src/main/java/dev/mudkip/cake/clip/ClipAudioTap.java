@@ -573,18 +573,32 @@ public final class ClipAudioTap {
                     this.deleteQueued(source);
                 }
 
-                pcm.clear();
-                JNI.invokePPV(device, MemoryUtil.memAddress(pcm), ClipAudioRing.FRAMES_PER_CHUNK, capabilities.alcRenderSamplesSOFT);
-                pcm.clear();
-                pcm.limit(ClipAudioRing.CHUNK_BYTES);
-                this.ring.add(next, pcm);
-                next += ClipAudioRing.CHUNK_NANOS;
+                var now = System.nanoTime();
+                var behind = now - next;
+
+                if (behind > 500_000_000L) {
+                    LOGGER.info("Clip audio fell {}s behind", behind / 1_000_000_000.0D);
+                }
+
+                var retention = this.ring.getBufferNanos();
+
+                if (next < now - retention) {
+                    next = now - retention;
+                }
+
+                while (this.running && next <= now) {
+                    pcm.clear();
+                    JNI.invokePPV(device, MemoryUtil.memAddress(pcm), ClipAudioRing.FRAMES_PER_CHUNK, capabilities.alcRenderSamplesSOFT);
+                    pcm.clear();
+                    pcm.limit(ClipAudioRing.CHUNK_BYTES);
+                    this.ring.add(next, pcm);
+                    next += ClipAudioRing.CHUNK_NANOS;
+                }
+
                 var sleep = next - System.nanoTime();
 
                 if (sleep > 0L) {
                     LockSupport.parkNanos(sleep);
-                } else if (sleep < -200_000_000L) {
-                    next = System.nanoTime();
                 }
             }
         }

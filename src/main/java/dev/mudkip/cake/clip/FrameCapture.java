@@ -155,13 +155,12 @@ public final class FrameCapture {
     }
 
     public void onRenderEnd() {
-        this.lastRenderNanos = System.nanoTime();
+        var now = System.nanoTime();
+        this.lastRenderNanos = now;
 
         if (this.closed.get() || this.target.width != this.width || this.target.height != this.height) {
             return;
         }
-
-        var now = System.nanoTime();
 
         if (this.nextCaptureNanos == 0L) {
             this.nextCaptureNanos = now;
@@ -200,7 +199,7 @@ public final class FrameCapture {
                     texture,
                     buffer,
                     0L,
-                    () -> this.onCopied(buffer, frame, captureGeneration),
+                    () -> this.onCopied(buffer, frame, captureGeneration, now),
                     0
             );
         } catch (Throwable throwable) {
@@ -246,7 +245,7 @@ public final class FrameCapture {
         this.inFlight = Collections.newSetFromMap(new ConcurrentHashMap<>());
     }
 
-    private void onCopied(GpuBuffer buffer, ByteBuffer frame, int captureGeneration) {
+    private void onCopied(GpuBuffer buffer, ByteBuffer frame, int captureGeneration, long captureNanos) {
         if (this.closed.get()) {
             buffer.close();
             this.freeFrames.offer(frame);
@@ -276,10 +275,10 @@ public final class FrameCapture {
         this.freeBuffers.add(buffer);
 
         if (this.firstFrameNanos == 0L) {
-            this.firstFrameNanos = System.nanoTime();
+            this.firstFrameNanos = captureNanos;
         }
 
-        if (!this.frames.offer(new CapturedFrame(this.firstFrameNanos, frame))) {
+        if (!this.frames.offer(new CapturedFrame(captureNanos, frame))) {
             this.freeFrames.add(frame);
         }
     }
@@ -293,6 +292,6 @@ public final class FrameCapture {
         return Math.max(2, scaled + (scaled & 1));
     }
 
-    public record CapturedFrame(long firstFrameNanos, ByteBuffer data) {
+    public record CapturedFrame(long captureNanos, ByteBuffer data) {
     }
 }

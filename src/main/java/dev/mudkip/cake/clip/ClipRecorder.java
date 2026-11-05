@@ -42,6 +42,7 @@ public final class ClipRecorder {
     private static final String SEGMENT_LIST = "segments.csv";
     private static final int SEGMENT_SECONDS = 1;
     private static final long SAVE_WAIT_NANOS = 2_000_000_000L;
+    private static final long MAX_TIMELINE_GAP_NANOS = 5_000_000_000L;
     private static volatile @Nullable Session activeSession;
     private final Minecraft client;
     private final ReplayBufferModule module;
@@ -137,6 +138,13 @@ public final class ClipRecorder {
 
         var currentSession = this.session;
 
+        if (currentSession != null && currentSession.isTimelineBroken()) {
+            LOGGER.warn("Clip recorder restarted after a long frame gap");
+            this.stopSession();
+            this.failed = false;
+            return;
+        }
+
         if (currentSession != null && !currentSession.isAlive()) {
             LOGGER.warn("Clip recorder stopped unexpectedly");
             currentSession.stop();
@@ -176,7 +184,7 @@ public final class ClipRecorder {
     public void saveClip() {
         var current = this.session;
 
-        if (current == null || !current.isAlive()) {
+        if (current == null || current.isTimelineBroken() || !current.isAlive()) {
             this.notify(Component.translatable("cake.clip.not_running"));
             return;
         }
@@ -466,6 +474,7 @@ public final class ClipRecorder {
         private @Nullable Path processLog;
         private volatile boolean running;
         private volatile boolean saveRunning;
+        private volatile boolean timelineBroken;
         private int nextSegmentIndex;
         private final long startedNanos;
         private volatile long lastFrameWrittenNanos;
@@ -540,6 +549,10 @@ public final class ClipRecorder {
         private boolean isAlive() {
             var current = this.process;
             return this.running && current != null && current.isAlive();
+        }
+
+        private boolean isTimelineBroken() {
+            return this.timelineBroken;
         }
 
         private long getStartedNanos() {
@@ -852,33 +865,77 @@ public final class ClipRecorder {
             }
 
             var frames = currentCapture.getFrames();
+            var frameSize = currentCapture.getFrameSize();
+            var intervalNanos = 1_000_000_000.0D / this.module.getFps().getValue();
+            var maxGapFrames = Math.max(1L, Math.round(ClipRecorder.MAX_TIMELINE_GAP_NANOS / intervalNanos));
+            var baseNanos = 0L;
+            var nextSlot = 0L;
+            ByteBuffer previous = null;
 
-            while (this.running || !frames.isEmpty()) {
-                FrameCapture.CapturedFrame frame;
+            try {
+                while (this.running || !frames.isEmpty()) {
+                    FrameCapture.CapturedFrame frame;
 
-                try {
-                    frame = frames.poll(50L, TimeUnit.MILLISECONDS);
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                    break;
+                    try {
+                        frame = frames.poll(50L, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+
+                    if (frame == null) {
+                        continue;
+                    }
+
+                    if (baseNanos == 0L) {
+                        baseNanos = currentCapture.getFirstFrameNanos();
+
+                        if (baseNanos == 0L) {
+                            baseNanos = frame.captureNanos();
+                        }
+                    }
+
+                    var target = Math.max(nextSlot, Math.round((frame.captureNanos() - baseNanos) / intervalNanos));
+                    var missing = target - nextSlot;
+
+                    if (missing > maxGapFrames) {
+                        LOGGER.warn("Clip recorder timeline gap of {}s", missing / (double) this.module.getFps().getValue());
+                        this.timelineBroken = true;
+                        currentCapture.getFreeFrames().offer(frame.data());
+                        break;
+                    }
+
+                    if (missing >= this.module.getFps().getValue() / 2L) {
+                        LOGGER.info("Clip recorder filled a {}s frame gap", missing / (double) this.module.getFps().getValue());
+                    }
+
+                    try {
+                        if (previous == null) {
+                            for (var index = 0L; index <= missing; index++) {
+                                ClipRecorder.writeFrame(channel, frame.data(), frameSize);
+                            }
+                        } else {
+                            for (var index = 0L; index < missing; index++) {
+                                ClipRecorder.writeFrame(channel, previous, frameSize);
+                            }
+
+                            ClipRecorder.writeFrame(channel, frame.data(), frameSize);
+                            currentCapture.getFreeFrames().offer(previous);
+                        }
+
+                        previous = frame.data();
+                        nextSlot = target + 1L;
+                        this.lastFrameWrittenNanos = System.nanoTime();
+                    } catch (IOException exception) {
+                        LOGGER.warn("Clip encoder pipe closed", exception);
+                        this.running = false;
+                        currentCapture.getFreeFrames().offer(frame.data());
+                        break;
+                    }
                 }
-
-                if (frame == null) {
-                    continue;
-                }
-
-                try {
-                    var data = frame.data();
-                    data.position(0);
-                    data.limit(currentCapture.getFrameSize());
-                    ClipRecorder.writeFully(channel, data);
-                    this.lastFrameWrittenNanos = System.nanoTime();
-                } catch (IOException exception) {
-                    LOGGER.warn("Clip encoder pipe closed", exception);
-                    this.running = false;
-                } finally {
-                    frame.data().clear();
-                    currentCapture.getFreeFrames().offer(frame.data());
+            } finally {
+                if (previous != null) {
+                    currentCapture.getFreeFrames().offer(previous);
                 }
             }
         }
@@ -1227,6 +1284,12 @@ public final class ClipRecorder {
         } catch (IOException exception) {
             LOGGER.debug("Could not read the clip ffmpeg wchan", exception);
         }
+    }
+
+    private static void writeFrame(WritableByteChannel channel, ByteBuffer data, int frameSize) throws IOException {
+        data.position(0);
+        data.limit(frameSize);
+        ClipRecorder.writeFully(channel, data);
     }
 
     private static void writeFully(WritableByteChannel channel, ByteBuffer buffer) throws IOException {

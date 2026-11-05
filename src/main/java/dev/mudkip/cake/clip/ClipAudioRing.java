@@ -36,6 +36,10 @@ public final class ClipAudioRing {
         this.trim();
     }
 
+    public synchronized long getBufferNanos() {
+        return this.bufferNanos;
+    }
+
     public synchronized void add(long startNanos, ByteBuffer pcm) {
         pcm.position(0);
         pcm.limit(ClipAudioRing.CHUNK_BYTES);
