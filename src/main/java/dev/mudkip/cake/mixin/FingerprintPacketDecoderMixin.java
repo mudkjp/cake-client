@@ -2,7 +2,7 @@ package dev.mudkip.cake.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import dev.mudkip.cake.module.PacketSource;
+import dev.mudkip.cake.module.FingerprintModule;
 import net.minecraft.network.PacketDecoder;
 import net.minecraft.network.codec.StreamCodec;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,12 +18,12 @@ public abstract class FingerprintPacketDecoderMixin {
             )
     )
     private Object cake$enterDecode(StreamCodec<?, ?> codec, Object input, Operation<Object> original) {
-        PacketSource.enter();
+        FingerprintModule.enterDecode();
 
         try {
             return original.call(codec, input);
         } finally {
-            PacketSource.exit();
+            FingerprintModule.exitDecode();
         }
     }
 }

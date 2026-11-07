@@ -1,7 +1,7 @@
 package dev.mudkip.cake.mixin;
 
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.modules.CleanScoreboardModule;
+import dev.mudkip.cake.module.CleanScoreboardModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;

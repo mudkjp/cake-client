@@ -1,10 +1,10 @@
-package dev.mudkip.cake.module.modules;
+package dev.mudkip.cake.module;
 
 import com.google.gson.JsonObject;
-import dev.mudkip.cake.module.ClientModule;
-import dev.mudkip.cake.module.ModuleContext;
-import dev.mudkip.cake.module.ModuleDefinition;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.ARGB;
 
 public abstract class HudModule extends ClientModule {
     public static final double MIN_SCALE = 0.5D;
@@ -36,6 +36,19 @@ public abstract class HudModule extends ClientModule {
     }
 
     public abstract String getText();
+
+    public static void render(GuiGraphicsExtractor graphics, HudModule module, float alpha) {
+        var font = Minecraft.getInstance().font;
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        pose.translate(
+                (float) Math.round(module.getX(graphics.guiWidth())),
+                (float) Math.round(module.getY(graphics.guiHeight()))
+        );
+        pose.scale((float) module.getScale(), (float) module.getScale());
+        graphics.text(font, module.getText(), 0, 0, ARGB.multiplyAlpha(0xFFFFFFFF, alpha), true);
+        pose.popMatrix();
+    }
 
     public int getTextWidth() {
         return this.client.font.width(this.getText());

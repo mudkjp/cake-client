@@ -1,7 +1,7 @@
 package dev.mudkip.cake.mixin;
 
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.modules.FingerprintModule;
+import dev.mudkip.cake.module.FingerprintModule;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.client.Minecraft;

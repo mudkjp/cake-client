@@ -17,7 +17,7 @@
     "environment": "client",
     "entrypoints": {
         "client": [
-            "dev.mudkip.cake.CakeClientFabric"
+            "dev.mudkip.cake.CakeClient"
         ]
     },
     "mixins": [

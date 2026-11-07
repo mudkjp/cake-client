@@ -1,7 +1,7 @@
 package dev.mudkip.cake.module;
 
 import com.google.gson.JsonObject;
-import dev.mudkip.cake.CakeClientKeybinds;
+import dev.mudkip.cake.KeybindController;
 import dev.mudkip.cake.module.setting.BooleanSetting;
 import dev.mudkip.cake.module.setting.ColorSetting;
 import dev.mudkip.cake.module.setting.DoubleSetting;
@@ -53,7 +53,7 @@ public abstract class ClientModule {
                 "key.cake.module." + this.id,
                 definition.keyType(),
                 definition.defaultKey(),
-                CakeClientKeybinds.getCategory()
+                KeybindController.getCategory()
         );
         this.changeListener = () -> { };
     }

@@ -1,9 +1,6 @@
-package dev.mudkip.cake.module.modules;
+package dev.mudkip.cake.module;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import dev.mudkip.cake.module.ModuleCategory;
-import dev.mudkip.cake.module.ModuleContext;
-import dev.mudkip.cake.module.ModuleDefinition;
 import net.minecraft.util.Util;
 
 import java.util.ArrayDeque;

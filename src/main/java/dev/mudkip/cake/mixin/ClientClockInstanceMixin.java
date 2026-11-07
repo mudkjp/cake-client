@@ -1,8 +1,7 @@
 package dev.mudkip.cake.mixin;
 
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.TimeChangerClockAccess;
-import dev.mudkip.cake.module.modules.TimeChangerModule;
+import dev.mudkip.cake.module.TimeChangerModule;
 import net.minecraft.client.ClientClockManager;
 import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ClientClockManager.ClientClockInstance.class)
-public abstract class ClientClockInstanceMixin implements TimeChangerClockAccess {
+public abstract class ClientClockInstanceMixin implements TimeChangerModule.ClockAccess {
     @Shadow
     private long totalTicks;
     @Unique

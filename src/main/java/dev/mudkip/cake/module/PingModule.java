@@ -1,8 +1,4 @@
-package dev.mudkip.cake.module.modules;
-
-import dev.mudkip.cake.module.ModuleCategory;
-import dev.mudkip.cake.module.ModuleContext;
-import dev.mudkip.cake.module.ModuleDefinition;
+package dev.mudkip.cake.module;
 
 public final class PingModule extends HudModule {
     public PingModule(ModuleContext context) {

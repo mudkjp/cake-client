@@ -2,8 +2,7 @@ package dev.mudkip.cake.mixin;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.modules.ScreenshotCompressionModule;
-import dev.mudkip.cake.screenshot.ScreenshotCompressionHandler;
+import dev.mudkip.cake.module.ScreenshotCompressionModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.network.chat.Component;
@@ -35,7 +34,7 @@ public abstract class ScreenshotCompressionMixin {
         }
 
         try {
-            ScreenshotCompressionHandler.grab(minecraft, workingDirectory, forceName, target, downscaleFactor, module.createOptions(), callback);
+            ScreenshotCompressionModule.grab(minecraft, workingDirectory, forceName, target, downscaleFactor, module.createOptions(), callback);
         } catch (Throwable throwable) {
             LOGGER.error("Failed to start compressed screenshot, falling back to vanilla", throwable);
             return;

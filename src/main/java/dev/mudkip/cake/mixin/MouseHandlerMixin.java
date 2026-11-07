@@ -2,8 +2,8 @@ package dev.mudkip.cake.mixin;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.modules.CpsModule;
-import dev.mudkip.cake.module.modules.ZoomModule;
+import dev.mudkip.cake.module.CpsModule;
+import dev.mudkip.cake.module.ZoomModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.input.MouseButtonInfo;

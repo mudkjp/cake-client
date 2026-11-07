@@ -3,7 +3,7 @@ package dev.mudkip.cake.ui;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mudkip.cake.module.ClientModule;
 import dev.mudkip.cake.module.ModuleManager;
-import dev.mudkip.cake.module.modules.HudModule;
+import dev.mudkip.cake.module.HudModule;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.UIComponents;
@@ -50,10 +50,10 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
         var panel = UIContainers.verticalFlow(Sizing.fixed(width), Sizing.fixed(height))
                 .gap(8);
         panel.padding(Insets.of(12));
-        panel.surface(Surface.flat(UiStyles.PANEL_BACKGROUND).and(Surface.outline(UiStyles.PANEL_OUTLINE)));
+        panel.surface(Surface.flat(MenuOwoScreen.PANEL_BACKGROUND).and(Surface.outline(MenuOwoScreen.PANEL_OUTLINE)));
 
         var back = UIComponents.button(Component.translatable("cake.menu.back"), button -> this.onClose());
-        back.renderer(UiStyles.SECONDARY_BUTTON);
+        back.renderer(MenuOwoScreen.SECONDARY_BUTTON);
         back.textShadow(false);
         back.horizontalSizing(Sizing.fixed(56));
 
@@ -77,7 +77,7 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
 
         if (this.module.getIntegration() != null) {
             this.serverLabel = UIComponents.label(Component.empty())
-                    .color(Color.ofArgb(UiStyles.SERVER_ACCENT));
+                    .color(Color.ofArgb(MenuOwoScreen.SERVER_ACCENT));
             this.serverLabel.horizontalSizing(Sizing.fill(100));
             panel.child(this.serverLabel);
         }
@@ -92,22 +92,22 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
                     Component.translatable("cake.menu.edit_hud"),
                     button -> this.minecraft.gui.setScreen(new HudEditorScreen(this.modules, this, hudModule))
             );
-            editHud.renderer(UiStyles.SECONDARY_BUTTON);
+            editHud.renderer(MenuOwoScreen.SECONDARY_BUTTON);
             editHud.textShadow(false);
             editHud.horizontalSizing(Sizing.fill(100));
             panel.child(editHud);
         }
 
         panel.child(UIComponents.label(Component.translatable("cake.menu.keybind"))
-                .color(Color.ofArgb(UiStyles.MUTED_TEXT)));
+                .color(Color.ofArgb(MenuOwoScreen.MUTED_TEXT)));
 
         this.keyButton = UIComponents.button(this.keyLabel(), button -> this.startCapture());
-        this.keyButton.renderer(UiStyles.SECONDARY_BUTTON);
+        this.keyButton.renderer(MenuOwoScreen.SECONDARY_BUTTON);
         this.keyButton.textShadow(false);
         this.keyButton.horizontalSizing(Sizing.expand(100));
 
         var clear = UIComponents.button(Component.translatable("cake.menu.clear"), button -> this.clearKeybind());
-        clear.renderer(UiStyles.SECONDARY_BUTTON);
+        clear.renderer(MenuOwoScreen.SECONDARY_BUTTON);
         clear.textShadow(false);
         clear.horizontalSizing(Sizing.fixed(56));
 
@@ -126,10 +126,10 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
 
         if (this.module.getSettings().isEmpty()) {
             settings.child(UIComponents.label(Component.translatable("cake.menu.no_settings"))
-                    .color(Color.ofArgb(UiStyles.MUTED_TEXT)));
+                    .color(Color.ofArgb(MenuOwoScreen.MUTED_TEXT)));
         } else {
             settings.child(UIComponents.label(Component.translatable("cake.menu.settings"))
-                    .color(Color.ofArgb(UiStyles.MUTED_TEXT)));
+                    .color(Color.ofArgb(MenuOwoScreen.MUTED_TEXT)));
 
             for (var setting : this.module.getSettings()) {
                 settings.child(setting.createControl());
@@ -137,7 +137,7 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
         }
 
         var scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.expand(100), settings)
-                .scrollbar(ScrollContainer.Scrollbar.flat(Color.ofArgb(UiStyles.SCROLLBAR)))
+                .scrollbar(ScrollContainer.Scrollbar.flat(Color.ofArgb(MenuOwoScreen.SCROLLBAR)))
                 .scrollbarThiccness(4)
                 .scrollStep(0);
         panel.child(scroll);
@@ -223,7 +223,7 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
                 available ? "cake.menu.server_only" : "cake.menu.server_unavailable",
                 integration.name()
         ));
-        this.serverLabel.color(Color.ofArgb(available ? UiStyles.SERVER_ACCENT : UiStyles.MUTED_TEXT));
+        this.serverLabel.color(Color.ofArgb(available ? MenuOwoScreen.SERVER_ACCENT : MenuOwoScreen.MUTED_TEXT));
     }
 
     private void updateConflictLabel() {

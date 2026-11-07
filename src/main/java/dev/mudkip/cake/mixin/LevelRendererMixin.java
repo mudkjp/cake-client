@@ -2,8 +2,7 @@ package dev.mudkip.cake.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.modules.BlockOutlineModule;
-import dev.mudkip.cake.render.BlockOutlineRenderer;
+import dev.mudkip.cake.module.BlockOutlineModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -24,6 +23,6 @@ public abstract class LevelRendererMixin {
         }
 
         callbackInfo.cancel();
-        BlockOutlineRenderer.submit(poseStack, submitNodeCollector, levelRenderState, module);
+        BlockOutlineModule.submit(poseStack, submitNodeCollector, levelRenderState, module);
     }
 }

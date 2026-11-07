@@ -1,8 +1,7 @@
 package dev.mudkip.cake.mixin;
 
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.PacketComponentAccess;
-import dev.mudkip.cake.module.modules.FingerprintModule;
+import dev.mudkip.cake.module.FingerprintModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.KeybindContents;
@@ -15,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(KeybindContents.class)
-public abstract class FingerprintKeybindMixin implements PacketComponentAccess {
+public abstract class FingerprintKeybindMixin implements FingerprintModule.PacketAccess {
     @Shadow
     @Final
     private String name;

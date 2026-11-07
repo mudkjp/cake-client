@@ -1,9 +1,5 @@
-package dev.mudkip.cake.module.modules;
+package dev.mudkip.cake.module;
 
-import dev.mudkip.cake.module.ClientModule;
-import dev.mudkip.cake.module.ModuleCategory;
-import dev.mudkip.cake.module.ModuleContext;
-import dev.mudkip.cake.module.ModuleDefinition;
 import dev.mudkip.cake.module.setting.IntSetting;
 
 public final class TimeChangerModule extends ClientModule {
@@ -18,5 +14,11 @@ public final class TimeChangerModule extends ClientModule {
 
     public int getTime() {
         return this.time.getValue();
+    }
+
+    public interface ClockAccess {
+        void cake$setOverworld(boolean overworld);
+
+        boolean cake$isOverworld();
     }
 }

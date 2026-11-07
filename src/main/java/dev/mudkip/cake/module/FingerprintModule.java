@@ -1,13 +1,14 @@
-package dev.mudkip.cake.module.modules;
+package dev.mudkip.cake.module;
 
-import dev.mudkip.cake.module.ClientModule;
-import dev.mudkip.cake.module.ModuleCategory;
-import dev.mudkip.cake.module.ModuleContext;
-import dev.mudkip.cake.module.ModuleDefinition;
+import com.mojang.datafixers.util.Pair;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
+import com.mojang.serialization.DynamicOps;
 import dev.mudkip.cake.module.setting.BooleanSetting;
 import dev.mudkip.cake.server.ServerAddresses;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.common.custom.BrandPayload;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
@@ -17,6 +18,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 
 public final class FingerprintModule extends ClientModule {
     private static final Set<Identifier> VANILLA_CHANNELS = Set.of(
@@ -25,6 +27,7 @@ public final class FingerprintModule extends ClientModule {
             Identifier.withDefaultNamespace("unregister"),
             Identifier.withDefaultNamespace("mco")
     );
+    private static final ThreadLocal<Boolean> DECODING = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private final BooleanSetting brand;
     private final BooleanSetting channels;
@@ -45,6 +48,18 @@ public final class FingerprintModule extends ClientModule {
         this.packCache = this.booleanSetting("pack_cache", true);
         this.localPacks = this.booleanSetting("local_packs", true);
         this.allowedTranslations = Set.of();
+    }
+
+    public static void enterDecode() {
+        FingerprintModule.DECODING.set(Boolean.TRUE);
+    }
+
+    public static void exitDecode() {
+        FingerprintModule.DECODING.set(Boolean.FALSE);
+    }
+
+    public static boolean isDecoding() {
+        return FingerprintModule.DECODING.get();
     }
 
     public static boolean isTrustedTranslationPack(String packId) {
@@ -146,7 +161,49 @@ public final class FingerprintModule extends ClientModule {
         return !this.client.hasSingleplayerServer();
     }
 
+    private static Component markFromPacket(Component component) {
+        if (component.getContents() instanceof FingerprintModule.PacketAccess access) {
+            access.cake$setFromPacket();
+        }
+
+        if (component.getContents() instanceof TranslatableContents translatable) {
+            for (var argument : translatable.getArgs()) {
+                if (argument instanceof Component nested) {
+                    FingerprintModule.markFromPacket(nested);
+                }
+            }
+        }
+
+        for (var sibling : component.getSiblings()) {
+            FingerprintModule.markFromPacket(sibling);
+        }
+
+        return component;
+    }
+
     private static boolean isRegistrationChannel(Identifier id) {
         return "register".equals(id.getPath()) || "unregister".equals(id.getPath());
+    }
+
+    public interface PacketAccess {
+        void cake$setFromPacket();
+    }
+
+    public record PacketCodec(Codec<Component> delegate, BooleanSupplier markingEnabled) implements Codec<Component> {
+        @Override
+        public <T> DataResult<Pair<Component, T>> decode(DynamicOps<T> ops, T input) {
+            var result = this.delegate.decode(ops, input);
+
+            if (!FingerprintModule.isDecoding() || !this.markingEnabled.getAsBoolean()) {
+                return result;
+            }
+
+            return result.map(pair -> pair.mapFirst(FingerprintModule::markFromPacket));
+        }
+
+        @Override
+        public <T> DataResult<T> encode(Component input, DynamicOps<T> ops, T prefix) {
+            return this.delegate.encode(input, ops, prefix);
+        }
     }
 }

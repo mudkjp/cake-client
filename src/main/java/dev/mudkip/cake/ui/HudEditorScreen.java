@@ -3,8 +3,8 @@ package dev.mudkip.cake.ui;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 import dev.mudkip.cake.module.ModuleManager;
-import dev.mudkip.cake.module.modules.HudModule;
-import dev.mudkip.cake.module.modules.HudModule.Anchor;
+import dev.mudkip.cake.module.HudModule;
+import dev.mudkip.cake.module.HudModule.Anchor;
 import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.UIComponents;
@@ -77,19 +77,19 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
                 .shadow(true)
                 .horizontalSizing(Sizing.expand(100));
         var hint = UIComponents.label(Component.translatable("cake.hud.editor.hint"))
-                .color(Color.ofArgb(UiStyles.MUTED_TEXT))
+                .color(Color.ofArgb(MenuOwoScreen.MUTED_TEXT))
                 .horizontalSizing(Sizing.fill(100));
 
         this.statusLabel = UIComponents.label(Component.empty())
-                .color(Color.ofArgb(UiStyles.MUTED_TEXT));
+                .color(Color.ofArgb(MenuOwoScreen.MUTED_TEXT));
 
         var reset = UIComponents.button(Component.translatable("cake.hud.editor.reset"), button -> this.resetAll());
-        reset.renderer(UiStyles.SECONDARY_BUTTON);
+        reset.renderer(MenuOwoScreen.SECONDARY_BUTTON);
         reset.textShadow(false);
         reset.horizontalSizing(Sizing.fixed(76));
 
         var done = UIComponents.button(Component.translatable("cake.hud.editor.done"), button -> this.onClose());
-        done.renderer(UiStyles.SECONDARY_BUTTON);
+        done.renderer(MenuOwoScreen.SECONDARY_BUTTON);
         done.textShadow(false);
         done.horizontalSizing(Sizing.fixed(56));
 
@@ -103,7 +103,7 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
 
         var bar = UIContainers.verticalFlow(Sizing.fixed(width), Sizing.content()).gap(4);
         bar.padding(Insets.of(8));
-        bar.surface(Surface.flat(UiStyles.PANEL_BACKGROUND).and(Surface.outline(UiStyles.PANEL_OUTLINE)));
+        bar.surface(Surface.flat(MenuOwoScreen.PANEL_BACKGROUND).and(Surface.outline(MenuOwoScreen.PANEL_OUTLINE)));
         bar.child(header);
         bar.child(hint);
         root.child(bar);
@@ -126,7 +126,7 @@ public final class HudEditorScreen extends BaseOwoScreen<FlowLayout> {
             var y = (int) Math.round(module.getY(screenHeight));
             var width = module.getWidth();
             var height = module.getHeight();
-            HudOverlay.render(graphics, module, module.isEnabled() ? 1.0F : HudEditorScreen.DISABLED_ALPHA);
+            HudModule.render(graphics, module, module.isEnabled() ? 1.0F : HudEditorScreen.DISABLED_ALPHA);
 
             if (module == this.selected || module == hoveredModule) {
                 var color = module == this.selected ? HudEditorScreen.SELECTION_OUTLINE : HudEditorScreen.HOVER_OUTLINE;

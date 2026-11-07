@@ -5,7 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.llamalad7.mixinextras.sugar.ref.LocalRef;
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.modules.FingerprintModule;
+import dev.mudkip.cake.module.FingerprintModule;
 import dev.mudkip.cake.server.ServerAddresses;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.HttpUtil;

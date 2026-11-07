@@ -1,4 +1,4 @@
-package dev.mudkip.cake.discord;
+package dev.mudkip.cake.module;
 
 import fun.crashsystem.jdrpc.DiscordIPC;
 import fun.crashsystem.jdrpc.DiscordIPCConfig;
@@ -7,7 +7,7 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class DiscordRpc {
+final class DiscordRpc {
     private static final Logger LOGGER = LoggerFactory.getLogger(DiscordRpc.class);
     private static final long RETRY_DELAY = 5000L;
     private static final long IDLE_DELAY = 500L;

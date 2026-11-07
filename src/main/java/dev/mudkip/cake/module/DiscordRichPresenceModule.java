@@ -1,20 +1,16 @@
-package dev.mudkip.cake.module.modules;
+package dev.mudkip.cake.module;
 
-import dev.mudkip.cake.discord.DiscordRpc;
-import dev.mudkip.cake.module.ClientModule;
-import dev.mudkip.cake.module.ModuleCategory;
-import dev.mudkip.cake.module.ModuleContext;
-import dev.mudkip.cake.module.ModuleDefinition;
 import dev.mudkip.cake.module.setting.BooleanSetting;
-import dev.mudkip.cake.server.Locraw;
-import dev.mudkip.cake.server.ServerIntegrations;
 import dev.mudkip.cake.server.ServerMappings;
 import dev.mudkip.cake.server.ServerMappings.Mapping;
+import dev.mudkip.cake.server.bedwars.BedwarsPractice;
+import dev.mudkip.cake.server.bedwars.BedwarsPracticeEvents;
+import dev.mudkip.cake.server.bedwars.BedwarsPracticeListener;
 import fun.crashsystem.jdrpc.activity.Activity;
 import net.minecraft.SharedConstants;
 import org.jspecify.annotations.Nullable;
 
-public final class DiscordRichPresenceModule extends ClientModule {
+public final class DiscordRichPresenceModule extends ClientModule implements BedwarsPracticeListener {
     private static final long APPLICATION_ID = 1565545232320299088L;
     private static final String LARGE_IMAGE = "cake";
     private static final String LARGE_IMAGE_TEXT = "Cake Client";
@@ -22,35 +18,36 @@ public final class DiscordRichPresenceModule extends ClientModule {
 
     private final BooleanSetting showServer;
     private final DiscordRpc rpc;
-    private final Locraw locraw;
+    private final BedwarsPractice bedwarsPractice;
     private final ServerMappings serverMappings;
+    private @Nullable String bedwarsMode;
+    private boolean tracking;
     private long startTime;
 
     public DiscordRichPresenceModule(ModuleContext context) {
         super(ModuleDefinition.of("discordrichpresence", ModuleCategory.MISC), context);
         this.showServer = this.booleanSetting("show_server", false);
         this.rpc = new DiscordRpc(DiscordRichPresenceModule.APPLICATION_ID);
-        this.locraw = new Locraw(context.client(), context.serverSession(), ServerIntegrations.BEDWARS_PRACTICE);
-        this.locraw.register();
+        this.bedwarsPractice = context.bedwarsPractice();
         this.serverMappings = context.serverMappings();
     }
 
     @Override
     protected void onEnable() {
         this.startTime = System.currentTimeMillis() / 1000L;
-        this.locraw.reset();
+        this.syncTracking();
         this.rpc.start();
     }
 
     @Override
     protected void onDisable() {
-        this.locraw.reset();
+        this.syncTracking();
         this.rpc.stop();
     }
 
     @Override
     protected void onTick() {
-        this.locraw.tick(this.showServer.getValue());
+        this.syncTracking();
 
         if (this.showServer.getValue()) {
             this.serverMappings.ensureLoaded();
@@ -59,9 +56,60 @@ public final class DiscordRichPresenceModule extends ClientModule {
         this.rpc.update(this.createActivity());
     }
 
+    @Override
+    public void onServerJoin(BedwarsPracticeEvents.ServerJoin event) {
+        if (event.kind() == BedwarsPracticeEvents.ServerKind.LOBBY) {
+            this.bedwarsMode = null;
+        }
+    }
+
+    @Override
+    public void onServerLeave(BedwarsPracticeEvents.ServerLeave event) {
+        this.bedwarsMode = null;
+    }
+
+    @Override
+    public void onGameJoin(BedwarsPracticeEvents.GameJoin event) {
+        this.bedwarsMode = event.game().mode();
+    }
+
+    @Override
+    public void onGameModeChange(BedwarsPracticeEvents.GameModeChange event) {
+        this.bedwarsMode = event.game().mode();
+    }
+
+    @Override
+    public void onGameEnd(BedwarsPracticeEvents.GameEnd event) {
+        this.bedwarsMode = event.game().mode();
+    }
+
+    @Override
+    public void onGameLeave(BedwarsPracticeEvents.GameLeave event) {
+        this.bedwarsMode = null;
+    }
+
+    private void syncTracking() {
+        var shouldTrack = this.isEnabled() && this.showServer.getValue();
+
+        if (shouldTrack == this.tracking) {
+            return;
+        }
+
+        this.tracking = shouldTrack;
+
+        if (shouldTrack) {
+            this.bedwarsPractice.addListener(this);
+            var game = this.bedwarsPractice.getGame();
+            this.bedwarsMode = game == null ? null : game.mode();
+        } else {
+            this.bedwarsPractice.removeListener(this);
+            this.bedwarsMode = null;
+        }
+    }
+
     private Activity createActivity() {
         var server = this.getServerContext();
-        var game = server == null ? null : this.locraw.getGame();
+        var game = server == null ? null : this.bedwarsMode;
         var builder = new Activity.Builder()
                 .setDetails(this.getDetails(server))
                 .setState(this.getState(server, game))
@@ -89,8 +137,8 @@ public final class DiscordRichPresenceModule extends ClientModule {
         var mapping = this.serverMappings.lookup(server.ip);
         var name = mapping != null
                 ? mapping.name()
-                : this.serverSession.isOn(ServerIntegrations.BEDWARS_PRACTICE)
-                        ? ServerIntegrations.BEDWARS_PRACTICE.name()
+                : this.serverSession.isOn(BedwarsPractice.INTEGRATION)
+                        ? BedwarsPractice.INTEGRATION.name()
                         : null;
 
         if (name == null) {

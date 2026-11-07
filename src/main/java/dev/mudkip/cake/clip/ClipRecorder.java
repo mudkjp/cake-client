@@ -1,7 +1,7 @@
 package dev.mudkip.cake.clip;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import dev.mudkip.cake.module.modules.ReplayBufferModule;
+import dev.mudkip.cake.module.ReplayBufferModule;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;

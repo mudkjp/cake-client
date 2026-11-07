@@ -1,6 +1,6 @@
 package dev.mudkip.cake.mixin;
 
-import dev.mudkip.cake.module.TimeChangerClockAccess;
+import dev.mudkip.cake.module.TimeChangerModule;
 import net.minecraft.client.ClientClockManager;
 import net.minecraft.core.Holder;
 import net.minecraft.world.clock.WorldClock;
@@ -18,7 +18,7 @@ public abstract class ClientClockManagerMixin {
     )
     private void cake$markOverworldClock(Holder<WorldClock> holder, CallbackInfoReturnable<ClientClockManager.ClientClockInstance> callbackInfo) {
         if (holder.unwrapKey().map(key -> key.equals(WorldClocks.OVERWORLD)).orElse(false)) {
-            ((TimeChangerClockAccess) callbackInfo.getReturnValue()).cake$setOverworld(true);
+            ((TimeChangerModule.ClockAccess) callbackInfo.getReturnValue()).cake$setOverworld(true);
         }
     }
 }

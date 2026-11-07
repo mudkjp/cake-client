@@ -1,7 +1,7 @@
 package dev.mudkip.cake.mixin;
 
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.modules.ZoomModule;
+import dev.mudkip.cake.module.ZoomModule;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;

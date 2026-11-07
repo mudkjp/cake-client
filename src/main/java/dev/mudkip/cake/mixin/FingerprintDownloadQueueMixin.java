@@ -3,7 +3,7 @@ package dev.mudkip.cake.mixin;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.sugar.Local;
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.modules.FingerprintModule;
+import dev.mudkip.cake.module.FingerprintModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.packs.DownloadQueue;
 import org.spongepowered.asm.mixin.Final;

@@ -1,17 +1,5 @@
 package dev.mudkip.cake.module;
 
-import dev.mudkip.cake.module.modules.BlockOutlineModule;
-import dev.mudkip.cake.module.modules.CleanScoreboardModule;
-import dev.mudkip.cake.module.modules.CpsModule;
-import dev.mudkip.cake.module.modules.DiscordRichPresenceModule;
-import dev.mudkip.cake.module.modules.FingerprintModule;
-import dev.mudkip.cake.module.modules.FpsModule;
-import dev.mudkip.cake.module.modules.FullBrightModule;
-import dev.mudkip.cake.module.modules.PingModule;
-import dev.mudkip.cake.module.modules.ReplayBufferModule;
-import dev.mudkip.cake.module.modules.ScreenshotCompressionModule;
-import dev.mudkip.cake.module.modules.TimeChangerModule;
-import dev.mudkip.cake.module.modules.ZoomModule;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;

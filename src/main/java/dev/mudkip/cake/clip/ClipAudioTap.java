@@ -2,7 +2,7 @@ package dev.mudkip.cake.clip;
 
 import com.mojang.blaze3d.audio.OpenAlUtil;
 import com.mojang.blaze3d.audio.SoundBuffer;
-import dev.mudkip.cake.module.modules.ReplayBufferModule;
+import dev.mudkip.cake.module.ReplayBufferModule;
 import net.minecraft.client.sounds.AudioStream;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
@@ -23,7 +23,6 @@ import javax.sound.sampled.AudioFormat;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.IntBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.IdentityHashMap;

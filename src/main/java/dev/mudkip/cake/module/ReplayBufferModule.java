@@ -1,4 +1,4 @@
-package dev.mudkip.cake.module.modules;
+package dev.mudkip.cake.module;
 
 import dev.mudkip.cake.clip.ClipAudioTap;
 import dev.mudkip.cake.clip.ClipCodec;
@@ -6,10 +6,6 @@ import dev.mudkip.cake.clip.ClipEncoderPreference;
 import dev.mudkip.cake.clip.ClipFps;
 import dev.mudkip.cake.clip.ClipRecorder;
 import dev.mudkip.cake.clip.ClipResolution;
-import dev.mudkip.cake.module.ClientModule;
-import dev.mudkip.cake.module.ModuleCategory;
-import dev.mudkip.cake.module.ModuleContext;
-import dev.mudkip.cake.module.ModuleDefinition;
 import dev.mudkip.cake.module.setting.BooleanSetting;
 import dev.mudkip.cake.module.setting.EnumSetting;
 import dev.mudkip.cake.module.setting.IntSetting;

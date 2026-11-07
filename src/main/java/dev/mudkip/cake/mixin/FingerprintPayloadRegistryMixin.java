@@ -1,8 +1,7 @@
 package dev.mudkip.cake.mixin;
 
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.PacketSource;
-import dev.mudkip.cake.module.modules.FingerprintModule;
+import dev.mudkip.cake.module.FingerprintModule;
 import net.fabricmc.fabric.impl.networking.PayloadTypeRegistryImpl;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.PacketFlow;
@@ -38,7 +37,7 @@ public abstract class FingerprintPayloadRegistryMixin {
 
     @Unique
     private void cake$dropInboundChannel(Identifier id, CallbackInfoReturnable<CustomPacketPayload.TypeAndCodec<?, ?>> callbackInfo) {
-        if (!PacketSource.isDecoding()) {
+        if (!FingerprintModule.isDecoding()) {
             return;
         }
 

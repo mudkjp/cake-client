@@ -1,9 +1,8 @@
-package dev.mudkip.cake.keybind;
+package dev.mudkip.cake;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import dev.mudkip.cake.CakeClientKeybinds;
 import dev.mudkip.cake.module.ModuleManager;
-import dev.mudkip.cake.module.modules.ReplayBufferModule;
+import dev.mudkip.cake.module.ReplayBufferModule;
 import dev.mudkip.cake.ui.HudEditorScreen;
 import dev.mudkip.cake.ui.ModMenuScreen;
 import dev.mudkip.cake.ui.ModuleDetailsScreen;
@@ -12,6 +11,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +25,9 @@ public final class KeybindController {
     private static final String LEGACY_KEY_NAMESPACE = "key.cakeclient.";
     private static final String KEY_NAMESPACE = "key.cake.";
     private static final Logger LOGGER = LoggerFactory.getLogger(KeybindController.class);
+    private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
+            Identifier.fromNamespaceAndPath("cake", "main")
+    );
 
     private final Minecraft client;
     private final ModuleManager modules;
@@ -41,15 +44,19 @@ public final class KeybindController {
                 "key.cake.open_menu",
                 InputConstants.Type.KEYBOARD,
                 InputConstants.KEY_RSHIFT,
-                CakeClientKeybinds.getCategory()
+                KeybindController.CATEGORY
         );
         this.saveClipKey = new KeyMapping(
                 "key.cake.save_clip",
                 InputConstants.Type.KEYBOARD,
                 InputConstants.KEY_F9,
-                CakeClientKeybinds.getCategory()
+                KeybindController.CATEGORY
         );
         this.readLegacyKeybinds();
+    }
+
+    public static KeyMapping.Category getCategory() {
+        return KeybindController.CATEGORY;
     }
 
     public void register() {

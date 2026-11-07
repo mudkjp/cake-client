@@ -3,8 +3,7 @@ package dev.mudkip.cake.mixin;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.PacketComponentAccess;
-import dev.mudkip.cake.module.modules.FingerprintModule;
+import dev.mudkip.cake.module.FingerprintModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.contents.TranslatableContents;
@@ -13,7 +12,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 
 @Mixin(TranslatableContents.class)
-public abstract class FingerprintTranslatableMixin implements PacketComponentAccess {
+public abstract class FingerprintTranslatableMixin implements FingerprintModule.PacketAccess {
     @Unique
     private boolean cake$fromPacket;
 

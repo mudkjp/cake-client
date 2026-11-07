@@ -1,7 +1,7 @@
 package dev.mudkip.cake.mixin;
 
 import dev.mudkip.cake.MinecraftClientAccess;
-import dev.mudkip.cake.module.modules.FullBrightModule;
+import dev.mudkip.cake.module.FullBrightModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightmapRenderStateExtractor;
 import net.minecraft.client.renderer.state.LightmapRenderState;

@@ -27,13 +27,13 @@ public final class ModuleWidgets {
         if (!module.isAvailable()) {
             button.setMessage(Component.translatable("cake.menu.unavailable"));
             button.active(false);
-            button.renderer(UiStyles.UNAVAILABLE_BUTTON);
+            button.renderer(MenuOwoScreen.UNAVAILABLE_BUTTON);
             return;
         }
 
         button.setMessage(ModuleWidgets.stateLabel(module));
         button.active(true);
-        button.renderer(module.isEnabled() ? UiStyles.ENABLED_BUTTON : UiStyles.DISABLED_BUTTON);
+        button.renderer(module.isEnabled() ? MenuOwoScreen.ENABLED_BUTTON : MenuOwoScreen.DISABLED_BUTTON);
     }
 
     private static Component stateLabel(ClientModule module) {

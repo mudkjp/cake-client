@@ -67,7 +67,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
         var panel = UIContainers.verticalFlow(Sizing.fixed(this.panelWidth), Sizing.fixed(panelHeight))
                 .gap(8);
         panel.padding(Insets.of(12));
-        panel.surface(Surface.flat(UiStyles.PANEL_BACKGROUND).and(Surface.outline(UiStyles.PANEL_OUTLINE)));
+        panel.surface(Surface.flat(MenuOwoScreen.PANEL_BACKGROUND).and(Surface.outline(MenuOwoScreen.PANEL_OUTLINE)));
 
         var searchBox = UIComponents.textBox(Sizing.fill(100));
         searchBox.setBordered(false);
@@ -83,11 +83,11 @@ public final class ModMenuScreen extends MenuOwoScreen {
         searchPanel.margins(Insets.left(ModMenuScreen.CARD_MARGIN));
         searchPanel.padding(Insets.both(2, 6));
         searchPanel.verticalAlignment(VerticalAlignment.CENTER);
-        searchPanel.surface(Surface.flat(UiStyles.SEARCH_BACKGROUND).and(Surface.outline(UiStyles.SEARCH_OUTLINE)));
+        searchPanel.surface(Surface.flat(MenuOwoScreen.SEARCH_BACKGROUND).and(Surface.outline(MenuOwoScreen.SEARCH_OUTLINE)));
         searchPanel.child(searchBox);
 
         var close = UIComponents.button(Component.literal("X"), button -> this.onClose());
-        close.renderer(UiStyles.CLOSE_BUTTON);
+        close.renderer(MenuOwoScreen.CLOSE_BUTTON);
         close.textShadow(false);
         close.horizontalSizing(Sizing.fixed(20));
         close.verticalSizing(Sizing.fixed(20));
@@ -106,7 +106,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
         this.gridContainer.padding(Insets.bottom(16));
 
         var scroll = UIContainers.verticalScroll(Sizing.fill(100), Sizing.expand(100), this.gridContainer)
-                .scrollbar(ScrollContainer.Scrollbar.flat(Color.ofArgb(UiStyles.SCROLLBAR)))
+                .scrollbar(ScrollContainer.Scrollbar.flat(Color.ofArgb(MenuOwoScreen.SCROLLBAR)))
                 .scrollbarThiccness(4)
                 .scrollStep(0);
 
@@ -157,10 +157,10 @@ public final class ModMenuScreen extends MenuOwoScreen {
                     }
                 }
         );
-        var activeColor = category == null ? UiStyles.ALL_ACCENT : category.getColor();
+        var activeColor = category == null ? MenuOwoScreen.ALL_ACCENT : category.getColor();
         button.renderer(this.categoryFilter == category
                 ? ModMenuScreen.activeFilter(activeColor)
-                : UiStyles.SECONDARY_BUTTON);
+                : MenuOwoScreen.SECONDARY_BUTTON);
         button.textShadow(false);
         button.horizontalSizing(Sizing.fixed(ModMenuScreen.FILTER_WIDTH));
         return button;
@@ -209,7 +209,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
 
         if (visible.isEmpty()) {
             gridContainer.child(UIComponents.label(Component.translatable("cake.menu.no_results"))
-                    .color(Color.ofArgb(UiStyles.MUTED_TEXT)));
+                    .color(Color.ofArgb(MenuOwoScreen.MUTED_TEXT)));
             return;
         }
 
@@ -246,7 +246,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
                 .gap(4);
         card.padding(Insets.of(8));
         card.margins(Insets.of(ModMenuScreen.CARD_MARGIN));
-        card.surface(Surface.flat(UiStyles.CARD_BACKGROUND).and(Surface.outline(UiStyles.CARD_OUTLINE)));
+        card.surface(Surface.flat(MenuOwoScreen.CARD_BACKGROUND).and(Surface.outline(MenuOwoScreen.CARD_OUTLINE)));
 
         var icon = UIComponents.texture(module.getIcon(), 0, 0, 128, 128, 128, 128);
         icon.horizontalSizing(Sizing.fixed(ModMenuScreen.ICON_SIZE));
@@ -266,7 +266,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
                 ? ModMenuScreen.MAX_DESCRIPTION_LINES
                 : ModMenuScreen.MAX_DESCRIPTION_LINES - 1;
         var description = UIComponents.label(this.cardText(module.getDescription(), textWidth, descriptionLines))
-                .color(Color.ofArgb(UiStyles.MUTED_TEXT))
+                .color(Color.ofArgb(MenuOwoScreen.MUTED_TEXT))
                 .lineSpacing(0)
                 .maxWidth(textWidth);
         description.horizontalSizing(Sizing.fill(100));
@@ -276,7 +276,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
 
         if (integration != null) {
             var badge = UIComponents.label(this.cardText(Component.literal(integration.name()), textWidth, 1))
-                    .color(Color.ofArgb(UiStyles.SERVER_ACCENT))
+                    .color(Color.ofArgb(MenuOwoScreen.SERVER_ACCENT))
                     .lineSpacing(0)
                     .maxWidth(textWidth);
             badge.horizontalSizing(Sizing.fill(100));
@@ -306,7 +306,7 @@ public final class ModMenuScreen extends MenuOwoScreen {
                 Component.translatable("cake.menu.configure"),
                 button -> this.minecraft.gui.setScreen(new ModuleDetailsScreen(this.modules, module))
         );
-        configure.renderer(UiStyles.SECONDARY_BUTTON);
+        configure.renderer(MenuOwoScreen.SECONDARY_BUTTON);
         configure.textShadow(false);
         configure.horizontalSizing(Sizing.fixed(actionWidth));
         actions.child(configure);
