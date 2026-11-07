@@ -28,8 +28,10 @@
         "ListenerMixin",
         "MinecraftClientMixin",
         "MouseHandlerMixin",
+        "NameTagMixin",
         "ScreenshotCompressionMixin",
         "SoundBufferMixin",
+        "TabListMixin",
         "TelemetryMixin",
         "TelemetrySessionMixin"
     ],

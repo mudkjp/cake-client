@@ -75,6 +75,8 @@ public final class ModuleManager {
         this.register(new TimeChangerModule(context));
         this.register(new BlockOutlineModule(context));
         this.register(new CleanScoreboardModule(context));
+        this.register(new StarLevelsModule(context));
+        this.register(new NickDetectorModule(context));
         this.register(new FpsModule(context));
         this.register(new CpsModule(context));
         this.register(new PingModule(context));
