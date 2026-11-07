@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class FrameCapture {
     private static final Logger LOGGER = LoggerFactory.getLogger(FrameCapture.class);
@@ -31,6 +32,8 @@ public final class FrameCapture {
     private final long startedNanos;
     private final ArrayBlockingQueue<CapturedFrame> frames;
     private final AtomicBoolean closed;
+    private final AtomicInteger pending;
+    private final AtomicInteger callbacks;
     private volatile ArrayBlockingQueue<GpuBuffer> freeBuffers;
     private volatile ArrayBlockingQueue<ByteBuffer> freeFrames;
     private volatile Set<GpuBuffer> inFlight;
@@ -54,6 +57,8 @@ public final class FrameCapture {
         this.lastCopiedNanos = this.startedNanos;
         this.frames = new ArrayBlockingQueue<>(FrameCapture.MAX_FRAMES);
         this.closed = new AtomicBoolean();
+        this.pending = new AtomicInteger();
+        this.callbacks = new AtomicInteger();
         this.createPool();
     }
 
@@ -105,6 +110,14 @@ public final class FrameCapture {
         return this.frameSize;
     }
 
+    public int getPendingCount() {
+        return this.pending.get();
+    }
+
+    public int getCallbackCount() {
+        return this.callbacks.get();
+    }
+
     public ArrayBlockingQueue<CapturedFrame> getFrames() {
         return this.frames;
     }
@@ -114,7 +127,7 @@ public final class FrameCapture {
     }
 
     public boolean isStuck() {
-        if (this.closed.get() || this.inFlight.isEmpty()) {
+        if (this.closed.get()) {
             return false;
         }
 
@@ -132,7 +145,18 @@ public final class FrameCapture {
             return false;
         }
 
-        return now - this.lastCopiedNanos > 2_000_000_000L;
+        if (now - this.lastCopiedNanos <= 2_000_000_000L) {
+            return false;
+        }
+
+        if (!this.inFlight.isEmpty()) {
+            return true;
+        }
+
+        return this.freeBuffers.isEmpty()
+                && this.freeFrames.isEmpty()
+                && this.frames.isEmpty()
+                && this.pending.get() == 0;
     }
 
     public void recover() {
@@ -192,6 +216,7 @@ public final class FrameCapture {
         }
 
         this.inFlight.add(buffer);
+        this.pending.incrementAndGet();
         var captureGeneration = this.generation;
 
         try {
@@ -203,6 +228,7 @@ public final class FrameCapture {
                     0
             );
         } catch (Throwable throwable) {
+            this.pending.decrementAndGet();
             this.inFlight.remove(buffer);
             this.freeBuffers.add(buffer);
             this.freeFrames.add(frame);
@@ -246,40 +272,47 @@ public final class FrameCapture {
     }
 
     private void onCopied(GpuBuffer buffer, ByteBuffer frame, int captureGeneration, long captureNanos) {
-        if (this.closed.get()) {
-            buffer.close();
-            this.freeFrames.offer(frame);
-            return;
-        }
+        this.pending.decrementAndGet();
+        this.callbacks.incrementAndGet();
 
-        if (captureGeneration != this.generation) {
-            buffer.close();
-            this.freeFrames.offer(frame);
-            return;
-        }
+        try {
+            if (this.closed.get()) {
+                buffer.close();
+                this.freeFrames.offer(frame);
+                return;
+            }
 
-        this.inFlight.remove(buffer);
-        this.lastCopiedNanos = System.nanoTime();
+            if (captureGeneration != this.generation) {
+                buffer.close();
+                this.freeFrames.offer(frame);
+                return;
+            }
 
-        try (var view = buffer.map(true, false)) {
-            frame.clear();
-            frame.put(view.data());
-            frame.flip();
-        } catch (Throwable throwable) {
+            this.inFlight.remove(buffer);
+            this.lastCopiedNanos = System.nanoTime();
+
+            try (var view = buffer.map(true, false)) {
+                frame.clear();
+                frame.put(view.data());
+                frame.flip();
+            } catch (Throwable throwable) {
+                this.freeBuffers.add(buffer);
+                this.freeFrames.add(frame);
+                LOGGER.debug("Could not read clip frame", throwable);
+                return;
+            }
+
             this.freeBuffers.add(buffer);
-            this.freeFrames.add(frame);
-            LOGGER.debug("Could not read clip frame", throwable);
-            return;
-        }
 
-        this.freeBuffers.add(buffer);
+            if (this.firstFrameNanos == 0L) {
+                this.firstFrameNanos = captureNanos;
+            }
 
-        if (this.firstFrameNanos == 0L) {
-            this.firstFrameNanos = captureNanos;
-        }
-
-        if (!this.frames.offer(new CapturedFrame(captureNanos, frame))) {
-            this.freeFrames.add(frame);
+            if (!this.frames.offer(new CapturedFrame(captureNanos, frame))) {
+                this.freeFrames.add(frame);
+            }
+        } finally {
+            this.callbacks.decrementAndGet();
         }
     }
 

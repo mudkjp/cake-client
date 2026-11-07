@@ -49,7 +49,6 @@ public final class ClipRecorder {
     private final ClipAudioTap audio;
     private volatile boolean enabled;
     private volatile boolean preparing;
-    private volatile boolean failed;
     private volatile boolean restartPending;
     private @Nullable Level level;
     private @Nullable Session session;
@@ -60,7 +59,8 @@ public final class ClipRecorder {
     private @Nullable String lastFfmpegPath;
     private int lastQuality;
     private boolean audioFailureReported;
-    private int stallAttempts;
+    private boolean prepareFailureReported;
+    private long prepareRetryAtNanos;
     private long settingsRestartAtNanos;
     private int prepareGeneration;
 
@@ -81,11 +81,11 @@ public final class ClipRecorder {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        this.failed = false;
         this.restartPending = false;
         this.settingsRestartAtNanos = 0L;
         this.audioFailureReported = false;
-        this.stallAttempts = 0;
+        this.prepareFailureReported = false;
+        this.prepareRetryAtNanos = 0L;
         this.audio.setEnabled(enabled && this.module.isAudioEnabled());
 
         if (!enabled) {
@@ -119,9 +119,7 @@ public final class ClipRecorder {
         }
 
         if (currentLevel != this.level) {
-            this.stopSession();
             this.level = currentLevel;
-            this.failed = false;
         }
 
         if (this.settingsRestartAtNanos != 0L && System.nanoTime() >= this.settingsRestartAtNanos) {
@@ -133,38 +131,21 @@ public final class ClipRecorder {
             this.restartPending = false;
             this.settingsRestartAtNanos = 0L;
             this.stopSession();
-            this.failed = false;
         }
 
         var currentSession = this.session;
 
-        if (currentSession != null && currentSession.isTimelineBroken()) {
-            LOGGER.warn("Clip recorder restarted after a long frame gap");
-            this.stopSession();
-            this.failed = false;
-            return;
-        }
-
         if (currentSession != null && !currentSession.isAlive()) {
-            LOGGER.warn("Clip recorder stopped unexpectedly");
-            currentSession.stop();
+            LOGGER.warn("Clip recorder stopped unexpectedly, restarting");
+            currentSession.abort();
             this.session = null;
             ClipRecorder.activeSession = null;
-            this.failed = true;
-            this.notify(Component.translatable("cake.clip.recorder_stopped"));
             return;
-        }
-
-        if (currentSession != null
-                && this.stallAttempts > 0
-                && System.nanoTime() - currentSession.getStartedNanos() > 60_000_000_000L) {
-            this.stallAttempts = 0;
         }
 
         if (currentSession != null && currentSession.isCaptureStuck()) {
-            if (currentSession.recoverCapture()) {
-                return;
-            }
+            currentSession.recoverCapture();
+            return;
         }
 
         if (currentSession != null && currentSession.isStalled()) {
@@ -176,7 +157,7 @@ public final class ClipRecorder {
             this.restartPending = true;
         }
 
-        if (currentSession == null && !this.preparing && !this.failed) {
+        if (currentSession == null && !this.preparing && System.nanoTime() >= this.prepareRetryAtNanos) {
             this.prepare();
         }
     }
@@ -184,7 +165,7 @@ public final class ClipRecorder {
     public void saveClip() {
         var current = this.session;
 
-        if (current == null || current.isTimelineBroken() || !current.isAlive()) {
+        if (current == null || !current.isAlive()) {
             this.notify(Component.translatable("cake.clip.not_running"));
             return;
         }
@@ -212,15 +193,6 @@ public final class ClipRecorder {
         current.abort();
         this.session = null;
         ClipRecorder.activeSession = null;
-
-        this.stallAttempts++;
-
-        if (this.stallAttempts >= 5) {
-            this.failed = true;
-            this.notify(Component.translatable("cake.clip.recorder_stopped"));
-            return;
-        }
-
         this.restartPending = true;
     }
 
@@ -231,7 +203,8 @@ public final class ClipRecorder {
             return;
         }
 
-        this.stallAttempts = 0;
+        this.prepareFailureReported = false;
+        this.prepareRetryAtNanos = 0L;
         var audioEnabled = this.module.isAudioEnabled();
 
         if (this.audio.isEnabled() != audioEnabled) {
@@ -245,11 +218,8 @@ public final class ClipRecorder {
             this.restartPending = false;
         }
 
-        if (this.immediateVideoSettingsChanged()) {
-            this.restartPending = true;
-        }
-
-        if (this.lastQuality != this.module.getQuality()
+        if (this.immediateVideoSettingsChanged()
+                || this.lastQuality != this.module.getQuality()
                 || !Objects.equals(this.lastFfmpegPath, this.module.getFfmpegPath())) {
             this.settingsRestartAtNanos = System.nanoTime() + 1_000_000_000L;
         }
@@ -309,10 +279,15 @@ public final class ClipRecorder {
         this.preparing = false;
 
         if (error != null) {
-            this.failed = true;
             var cause = error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
             LOGGER.warn("Could not prepare the clip recorder", cause);
-            this.notify(Component.translatable("cake.clip.encoder_failed", Component.literal(String.valueOf(cause.getMessage()))));
+            this.prepareRetryAtNanos = System.nanoTime() + 15_000_000_000L;
+
+            if (!this.prepareFailureReported) {
+                this.prepareFailureReported = true;
+                this.notify(Component.translatable("cake.clip.encoder_failed", Component.literal(String.valueOf(cause.getMessage()))));
+            }
+
             return;
         }
 
@@ -323,9 +298,13 @@ public final class ClipRecorder {
         try {
             this.startSession(prepared);
         } catch (Throwable throwable) {
-            this.failed = true;
             LOGGER.warn("Could not start the clip recorder", throwable);
-            this.notify(Component.translatable("cake.clip.failure", Component.literal(String.valueOf(throwable.getMessage()))));
+            this.prepareRetryAtNanos = System.nanoTime() + 15_000_000_000L;
+
+            if (!this.prepareFailureReported) {
+                this.prepareFailureReported = true;
+                this.notify(Component.translatable("cake.clip.failure", Component.literal(String.valueOf(throwable.getMessage()))));
+            }
         }
     }
 
@@ -364,6 +343,8 @@ public final class ClipRecorder {
         }
 
         this.session = created;
+        this.prepareRetryAtNanos = 0L;
+        this.prepareFailureReported = false;
         this.rememberSettings();
         this.audio.setEnabled(this.module.isAudioEnabled());
         ClipRecorder.activeSession = created;
@@ -474,12 +455,10 @@ public final class ClipRecorder {
         private @Nullable Path processLog;
         private volatile boolean running;
         private volatile boolean saveRunning;
-        private volatile boolean timelineBroken;
         private int nextSegmentIndex;
         private final long startedNanos;
         private volatile long lastFrameWrittenNanos;
         private volatile long lastNewSegmentNanos;
-        private int captureRecoveries;
 
         private Session(
                 Minecraft client,
@@ -551,14 +530,6 @@ public final class ClipRecorder {
             return this.running && current != null && current.isAlive();
         }
 
-        private boolean isTimelineBroken() {
-            return this.timelineBroken;
-        }
-
-        private long getStartedNanos() {
-            return this.startedNanos;
-        }
-
         private boolean isResized() {
             var current = this.capture;
             return current != null && (this.target.width != current.getWidth() || this.target.height != current.getHeight());
@@ -569,15 +540,12 @@ public final class ClipRecorder {
             return current != null && current.isStuck();
         }
 
-        private boolean recoverCapture() {
+        private void recoverCapture() {
             var current = this.capture;
 
-            if (current == null || ++this.captureRecoveries > 5) {
-                return false;
+            if (current != null) {
+                current.recover();
             }
-
-            current.recover();
-            return true;
         }
 
         private void logDiagnostics() {
@@ -605,11 +573,13 @@ public final class ClipRecorder {
 
             if (currentCapture != null) {
                 LOGGER.warn(
-                        "Clip capture queues: frames {}, free frames {}, free buffers {}, in flight {}",
+                        "Clip capture queues: frames {}, free frames {}, free buffers {}, in flight {}, pending {}, callbacks {}",
                         currentCapture.getQueuedFrames(),
                         currentCapture.getFreeFrameCount(),
                         currentCapture.getFreeBuffers(),
-                        currentCapture.getInFlightCount()
+                        currentCapture.getInFlightCount(),
+                        currentCapture.getPendingCount(),
+                        currentCapture.getCallbackCount()
                 );
             }
 
@@ -899,10 +869,8 @@ public final class ClipRecorder {
                     var missing = target - nextSlot;
 
                     if (missing > maxGapFrames) {
-                        LOGGER.warn("Clip recorder timeline gap of {}s", missing / (double) this.module.getFps().getValue());
-                        this.timelineBroken = true;
-                        currentCapture.getFreeFrames().offer(frame.data());
-                        break;
+                        LOGGER.warn("Clip recorder skipped a {}s frame gap", missing / (double) this.module.getFps().getValue());
+                        missing = 0L;
                     }
 
                     if (missing >= this.module.getFps().getValue() / 2L) {

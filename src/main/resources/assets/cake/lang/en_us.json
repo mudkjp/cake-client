@@ -107,7 +107,6 @@
   "cake.clip.already_saving": "A clip is already being saved.",
   "cake.clip.downloading": "Downloading the video encoder (one time)...",
   "cake.clip.encoder_failed": "Could not prepare the video encoder: %s",
-  "cake.clip.recorder_stopped": "The replay buffer stopped recording.",
   "cake.clip.audio_failed": "Clip audio is unavailable on this system; clips will be silent.",
   "cake.clip.too_early": "The buffer needs a few more seconds of footage before it can save a clip.",
   "cake.module.zoom.name": "Zoom",
