@@ -9,12 +9,10 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public final class FrameCapture {
     private static final Logger LOGGER = LoggerFactory.getLogger(FrameCapture.class);
@@ -29,18 +27,13 @@ public final class FrameCapture {
     private final int outputHeight;
     private final int frameSize;
     private final long intervalNanos;
-    private final long startedNanos;
     private final ArrayBlockingQueue<CapturedFrame> frames;
+    private final ArrayBlockingQueue<GpuBuffer> freeBuffers;
+    private final ArrayBlockingQueue<ByteBuffer> freeFrames;
     private final Set<GpuBuffer> allBuffers;
+    private final Set<GpuBuffer> inFlight;
     private final AtomicBoolean closed;
-    private final AtomicInteger pending;
-    private final AtomicInteger callbacks;
-    private volatile ArrayBlockingQueue<GpuBuffer> freeBuffers;
-    private volatile ArrayBlockingQueue<ByteBuffer> freeFrames;
-    private volatile Set<GpuBuffer> inFlight;
-    private volatile int generation;
     private long nextCaptureNanos;
-    private volatile long firstFrameNanos;
     private volatile long lastRenderNanos;
     private volatile long lastCopiedNanos;
 
@@ -54,14 +47,33 @@ public final class FrameCapture {
         this.outputWidth = FrameCapture.evenWidth(this.width, this.height, this.outputHeight);
         this.frameSize = Math.multiplyExact(this.width, this.height) * 4;
         this.intervalNanos = 1_000_000_000L / fps.getValue();
-        this.startedNanos = System.nanoTime();
-        this.lastCopiedNanos = this.startedNanos;
+        this.lastRenderNanos = System.nanoTime();
+        this.lastCopiedNanos = this.lastRenderNanos;
         this.frames = new ArrayBlockingQueue<>(FrameCapture.MAX_FRAMES);
+        this.freeBuffers = new ArrayBlockingQueue<>(FrameCapture.MAX_BUFFERS);
+        this.freeFrames = new ArrayBlockingQueue<>(FrameCapture.MAX_FRAMES);
         this.allBuffers = ConcurrentHashMap.newKeySet();
+        this.inFlight = ConcurrentHashMap.newKeySet();
         this.closed = new AtomicBoolean();
-        this.pending = new AtomicInteger();
-        this.callbacks = new AtomicInteger();
-        this.createPool();
+
+        try {
+            for (var index = 0; index < FrameCapture.MAX_BUFFERS; index++) {
+                var buffer = this.device.createBuffer(
+                        () -> "Cake clip frame",
+                        GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
+                        this.frameSize
+                );
+                this.freeBuffers.add(buffer);
+                this.allBuffers.add(buffer);
+            }
+
+            for (var index = 0; index < FrameCapture.MAX_FRAMES; index++) {
+                this.freeFrames.add(ByteBuffer.allocateDirect(this.frameSize).order(ByteOrder.nativeOrder()));
+            }
+        } catch (Throwable throwable) {
+            this.close();
+            throw throwable;
+        }
     }
 
     public int getWidth() {
@@ -80,8 +92,8 @@ public final class FrameCapture {
         return this.outputHeight;
     }
 
-    public long getFirstFrameNanos() {
-        return this.firstFrameNanos;
+    public int getFrameSize() {
+        return this.frameSize;
     }
 
     public long getLastRenderNanos() {
@@ -106,18 +118,6 @@ public final class FrameCapture {
 
     public int getFreeBuffers() {
         return this.freeBuffers.size();
-    }
-
-    public int getFrameSize() {
-        return this.frameSize;
-    }
-
-    public int getPendingCount() {
-        return this.pending.get();
-    }
-
-    public int getCallbackCount() {
-        return this.callbacks.get();
     }
 
     public ArrayBlockingQueue<CapturedFrame> getFrames() {
@@ -148,6 +148,14 @@ public final class FrameCapture {
         var frame = this.freeFrames.poll();
 
         if (buffer == null || frame == null) {
+            if (buffer != null) {
+                this.freeBuffers.add(buffer);
+            }
+
+            if (frame != null) {
+                this.freeFrames.add(frame);
+            }
+
             return;
         }
 
@@ -166,19 +174,16 @@ public final class FrameCapture {
         }
 
         this.inFlight.add(buffer);
-        this.pending.incrementAndGet();
-        var captureGeneration = this.generation;
 
         try {
             this.device.createCommandEncoder().copyTextureToBuffer(
                     texture,
                     buffer,
                     0L,
-                    () -> this.onCopied(buffer, frame, captureGeneration, now),
+                    () -> this.onCopied(buffer, frame, now),
                     0
             );
         } catch (Throwable throwable) {
-            this.pending.decrementAndGet();
             this.inFlight.remove(buffer);
             this.freeBuffers.add(buffer);
             this.freeFrames.add(frame);
@@ -200,76 +205,36 @@ public final class FrameCapture {
         }
 
         this.allBuffers.clear();
+        this.inFlight.clear();
         this.freeBuffers.clear();
         this.freeFrames.clear();
         this.frames.clear();
     }
 
-    private void createPool() {
-        var buffers = new ArrayBlockingQueue<GpuBuffer>(FrameCapture.MAX_BUFFERS);
-        var frameBuffers = new ArrayBlockingQueue<ByteBuffer>(FrameCapture.MAX_FRAMES);
+    private void onCopied(GpuBuffer buffer, ByteBuffer frame, long captureNanos) {
+        this.inFlight.remove(buffer);
 
-        for (var index = 0; index < FrameCapture.MAX_BUFFERS; index++) {
-            var buffer = this.device.createBuffer(
-                    () -> "Cake clip frame",
-                    GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
-                    this.frameSize
-            );
-            buffers.add(buffer);
-            this.allBuffers.add(buffer);
+        if (this.closed.get()) {
+            return;
         }
 
-        for (var index = 0; index < FrameCapture.MAX_FRAMES; index++) {
-            frameBuffers.add(ByteBuffer.allocateDirect(this.frameSize).order(ByteOrder.nativeOrder()));
-        }
+        this.lastCopiedNanos = System.nanoTime();
 
-        this.freeBuffers = buffers;
-        this.freeFrames = frameBuffers;
-        this.inFlight = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    }
-
-    private void onCopied(GpuBuffer buffer, ByteBuffer frame, int captureGeneration, long captureNanos) {
-        this.pending.decrementAndGet();
-        this.callbacks.incrementAndGet();
-
-        try {
-            if (this.closed.get()) {
-                buffer.close();
-                this.freeFrames.offer(frame);
-                return;
-            }
-
-            if (captureGeneration != this.generation) {
-                buffer.close();
-                this.freeFrames.offer(frame);
-                return;
-            }
-
-            this.inFlight.remove(buffer);
-            this.lastCopiedNanos = System.nanoTime();
-
-            try (var view = buffer.map(true, false)) {
-                frame.clear();
-                frame.put(view.data());
-                frame.flip();
-            } catch (Throwable throwable) {
-                this.freeBuffers.add(buffer);
-                this.freeFrames.add(frame);
-                LOGGER.debug("Could not read clip frame", throwable);
-                return;
-            }
-
+        try (var view = buffer.map(true, false)) {
+            frame.clear();
+            frame.put(view.data());
+            frame.flip();
+        } catch (Throwable throwable) {
             this.freeBuffers.add(buffer);
+            this.freeFrames.add(frame);
+            LOGGER.debug("Could not read clip frame", throwable);
+            return;
+        }
 
-            if (this.firstFrameNanos == 0L) {
-                this.firstFrameNanos = captureNanos;
-            }
+        this.freeBuffers.add(buffer);
 
-            if (!this.frames.offer(new CapturedFrame(captureNanos, frame))) {
-                this.freeFrames.add(frame);
-            }
-        } finally {
-            this.callbacks.decrementAndGet();
+        if (!this.frames.offer(new CapturedFrame(captureNanos, frame))) {
+            this.freeFrames.add(frame);
         }
     }
 
