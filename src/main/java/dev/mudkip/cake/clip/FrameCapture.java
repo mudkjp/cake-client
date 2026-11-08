@@ -31,6 +31,7 @@ public final class FrameCapture {
     private final long intervalNanos;
     private final long startedNanos;
     private final ArrayBlockingQueue<CapturedFrame> frames;
+    private final Set<GpuBuffer> allBuffers;
     private final AtomicBoolean closed;
     private final AtomicInteger pending;
     private final AtomicInteger callbacks;
@@ -56,6 +57,7 @@ public final class FrameCapture {
         this.startedNanos = System.nanoTime();
         this.lastCopiedNanos = this.startedNanos;
         this.frames = new ArrayBlockingQueue<>(FrameCapture.MAX_FRAMES);
+        this.allBuffers = ConcurrentHashMap.newKeySet();
         this.closed = new AtomicBoolean();
         this.pending = new AtomicInteger();
         this.callbacks = new AtomicInteger();
@@ -126,58 +128,6 @@ public final class FrameCapture {
         return this.freeFrames;
     }
 
-    public boolean isStuck() {
-        if (this.closed.get()) {
-            return false;
-        }
-
-        if (this.target.width != this.width || this.target.height != this.height) {
-            return false;
-        }
-
-        var now = System.nanoTime();
-
-        if (now - this.lastRenderNanos > 2_000_000_000L) {
-            return false;
-        }
-
-        if (now - this.startedNanos < 5_000_000_000L) {
-            return false;
-        }
-
-        if (now - this.lastCopiedNanos <= 2_000_000_000L) {
-            return false;
-        }
-
-        if (!this.inFlight.isEmpty()) {
-            return true;
-        }
-
-        return this.freeBuffers.isEmpty()
-                && this.freeFrames.isEmpty()
-                && this.frames.isEmpty()
-                && this.pending.get() == 0;
-    }
-
-    public void recover() {
-        if (this.closed.get()) {
-            return;
-        }
-
-        this.generation++;
-        GpuBuffer buffer;
-
-        while ((buffer = this.freeBuffers.poll()) != null) {
-            buffer.close();
-        }
-
-        this.createPool();
-        this.frames.clear();
-        this.nextCaptureNanos = 0L;
-        this.lastCopiedNanos = System.nanoTime();
-        LOGGER.warn("Reset the clip capture buffer pool");
-    }
-
     public void onRenderEnd() {
         var now = System.nanoTime();
         this.lastRenderNanos = now;
@@ -241,12 +191,17 @@ public final class FrameCapture {
             return;
         }
 
-        GpuBuffer buffer;
-
-        while ((buffer = this.freeBuffers.poll()) != null) {
-            buffer.close();
+        for (var buffer : this.allBuffers) {
+            try {
+                buffer.close();
+            } catch (Throwable throwable) {
+                LOGGER.debug("Could not close a clip capture buffer", throwable);
+            }
         }
 
+        this.allBuffers.clear();
+        this.freeBuffers.clear();
+        this.freeFrames.clear();
         this.frames.clear();
     }
 
@@ -255,11 +210,13 @@ public final class FrameCapture {
         var frameBuffers = new ArrayBlockingQueue<ByteBuffer>(FrameCapture.MAX_FRAMES);
 
         for (var index = 0; index < FrameCapture.MAX_BUFFERS; index++) {
-            buffers.add(this.device.createBuffer(
+            var buffer = this.device.createBuffer(
                     () -> "Cake clip frame",
                     GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
                     this.frameSize
-            ));
+            );
+            buffers.add(buffer);
+            this.allBuffers.add(buffer);
         }
 
         for (var index = 0; index < FrameCapture.MAX_FRAMES; index++) {

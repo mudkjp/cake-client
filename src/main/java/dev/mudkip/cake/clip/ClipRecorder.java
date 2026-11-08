@@ -119,6 +119,7 @@ public final class ClipRecorder {
         }
 
         if (currentLevel != this.level) {
+            this.stopSession();
             this.level = currentLevel;
         }
 
@@ -140,11 +141,6 @@ public final class ClipRecorder {
             currentSession.abort();
             this.session = null;
             ClipRecorder.activeSession = null;
-            return;
-        }
-
-        if (currentSession != null && currentSession.isCaptureStuck()) {
-            currentSession.recoverCapture();
             return;
         }
 
@@ -533,19 +529,6 @@ public final class ClipRecorder {
         private boolean isResized() {
             var current = this.capture;
             return current != null && (this.target.width != current.getWidth() || this.target.height != current.getHeight());
-        }
-
-        private boolean isCaptureStuck() {
-            var current = this.capture;
-            return current != null && current.isStuck();
-        }
-
-        private void recoverCapture() {
-            var current = this.capture;
-
-            if (current != null) {
-                current.recover();
-            }
         }
 
         private void logDiagnostics() {
