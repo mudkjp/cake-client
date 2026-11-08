@@ -9,6 +9,7 @@
         "CleanScoreboardMixin",
         "ClientClockInstanceMixin",
         "ClientClockManagerMixin",
+        "ClientPacketListenerMixin",
         "FingerprintBrandMixin",
         "FingerprintChannelAddonMixin",
         "FingerprintConnectionMixin",
