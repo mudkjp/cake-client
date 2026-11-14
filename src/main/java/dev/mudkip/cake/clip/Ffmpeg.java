@@ -336,8 +336,7 @@ public final class Ffmpeg {
                             "-preset", "8",
                             "-crf", Integer.toString(quality),
                             "-g", Integer.toString(fps),
-                            "-pix_fmt", "yuv420p",
-                            "-svtav1-params", "pred-struct=1"
+                            "-pix_fmt", "yuv420p"
                     )
             ));
         }
