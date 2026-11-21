@@ -3,7 +3,6 @@ package dev.mudkip.cake.ui;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mudkip.cake.module.ClientModule;
 import dev.mudkip.cake.module.ModuleManager;
-import dev.mudkip.cake.module.HudModule;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.UIComponents;
@@ -86,17 +85,6 @@ public final class ModuleDetailsScreen extends MenuOwoScreen {
         enabledButton.horizontalSizing(Sizing.fill(100));
         panel.child(enabledButton);
         this.enabledButton = enabledButton;
-
-        if (this.module instanceof HudModule hudModule) {
-            var editHud = UIComponents.button(
-                    Component.translatable("cake.menu.edit_hud"),
-                    button -> this.minecraft.gui.setScreen(new HudEditorScreen(this.modules, this, hudModule))
-            );
-            editHud.renderer(MenuOwoScreen.SECONDARY_BUTTON);
-            editHud.textShadow(false);
-            editHud.horizontalSizing(Sizing.fill(100));
-            panel.child(editHud);
-        }
 
         panel.child(UIComponents.label(Component.translatable("cake.menu.keybind"))
                 .color(Color.ofArgb(MenuOwoScreen.MUTED_TEXT)));

@@ -2,7 +2,7 @@ package dev.mudkip.cake.module;
 
 public final class FpsModule extends HudModule {
     public FpsModule(ModuleContext context) {
-        super(ModuleDefinition.of("fps", ModuleCategory.MISC), context, Anchor.TOP_LEFT, 4.0D, 4.0D);
+        super(ModuleDefinition.of("fps", ModuleCategory.MISC), context);
     }
 
     @Override

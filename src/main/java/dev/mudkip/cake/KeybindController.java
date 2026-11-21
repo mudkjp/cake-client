@@ -3,7 +3,6 @@ package dev.mudkip.cake;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.mudkip.cake.module.ModuleManager;
 import dev.mudkip.cake.module.ReplayBufferModule;
-import dev.mudkip.cake.ui.HudEditorScreen;
 import dev.mudkip.cake.ui.ModMenuScreen;
 import dev.mudkip.cake.ui.ModuleDetailsScreen;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -115,7 +114,7 @@ public final class KeybindController {
             return true;
         }
 
-        if (screen instanceof ModMenuScreen || screen instanceof ModuleDetailsScreen || screen instanceof HudEditorScreen) {
+        if (screen instanceof ModMenuScreen || screen instanceof ModuleDetailsScreen) {
             return false;
         }
 

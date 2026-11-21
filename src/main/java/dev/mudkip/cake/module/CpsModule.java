@@ -12,7 +12,7 @@ public final class CpsModule extends HudModule {
     private final ArrayDeque<Long> rightClicks;
 
     public CpsModule(ModuleContext context) {
-        super(ModuleDefinition.of("cps", ModuleCategory.MISC), context, Anchor.TOP_LEFT, 4.0D, 15.0D);
+        super(ModuleDefinition.of("cps", ModuleCategory.MISC), context);
         this.leftClicks = new ArrayDeque<>();
         this.rightClicks = new ArrayDeque<>();
     }

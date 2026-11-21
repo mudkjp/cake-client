@@ -15,7 +15,7 @@ public final class PingModule extends HudModule {
     private int ticks;
 
     public PingModule(ModuleContext context) {
-        super(ModuleDefinition.of("ping", ModuleCategory.MISC), context, Anchor.TOP_LEFT, 4.0D, 26.0D);
+        super(ModuleDefinition.of("ping", ModuleCategory.MISC), context);
     }
 
     @Override

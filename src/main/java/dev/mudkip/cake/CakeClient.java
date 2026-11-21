@@ -10,7 +10,6 @@ import dev.mudkip.cake.module.ModuleManager;
 import dev.mudkip.cake.server.ServerMappings;
 import dev.mudkip.cake.server.ServerSession;
 import dev.mudkip.cake.server.bedwars.BedwarsPractice;
-import dev.mudkip.cake.ui.HudEditorScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -22,6 +21,7 @@ import net.minecraft.resources.Identifier;
 
 public final class CakeClient implements ClientModInitializer {
     private static final Identifier HUD_ID = Identifier.fromNamespaceAndPath("cake", "hud");
+    private static final int HUD_MARGIN = 4;
 
     private final Minecraft client;
     private final ServerSession serverSession;
@@ -72,13 +72,17 @@ public final class CakeClient implements ClientModInitializer {
     }
 
     private void renderHud(GuiGraphicsExtractor graphics) {
-        if (this.client.gui.hud.isHidden() || this.client.gui.screen() instanceof HudEditorScreen) {
+        if (this.client.gui.hud.isHidden()) {
             return;
         }
 
+        var font = this.client.font;
+        var y = CakeClient.HUD_MARGIN;
+
         for (var module : this.modules.getModules()) {
             if (module instanceof HudModule hudModule && hudModule.isEnabled()) {
-                HudModule.render(graphics, hudModule, 1.0F);
+                graphics.text(font, hudModule.getText(), CakeClient.HUD_MARGIN, y, 0xFFFFFFFF, true);
+                y += font.lineHeight;
             }
         }
     }

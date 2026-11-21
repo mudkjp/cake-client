@@ -29,7 +29,6 @@
   "cake.menu.back": "Back",
   "cake.menu.settings": "Settings",
   "cake.menu.no_settings": "This mod has no settings.",
-  "cake.menu.edit_hud": "Edit HUD",
   "cake.menu.unavailable": "Unavailable",
   "cake.menu.server_only": "Only available on %s",
   "cake.menu.server_unavailable": "Join %s to use this module",
@@ -180,19 +179,5 @@
   "cake.module.discordrichpresence.name": "Discord Rich Presence",
   "cake.module.discordrichpresence.description": "Shows your Minecraft activity on your Discord profile. Requires the Discord desktop app.",
   "cake.setting.discordrichpresence.show_server.name": "Show Server",
-  "cake.setting.discordrichpresence.show_server.description": "Shows the name and icon of the server you are on, including supported server integrations and public servers listed in Lunar Client's ServerMappings.",
-  "cake.hud.editor.title": "HUD Editor",
-  "cake.hud.editor.hint": "Drag to move, release near a snap point to anchor, or click a snap point. Drag the corner to scale.",
-  "cake.hud.editor.reset": "Reset all",
-  "cake.hud.editor.done": "Done",
-  "cake.hud.editor.status": "%s | %s | %s",
-  "cake.hud.anchor.top_left": "Top left",
-  "cake.hud.anchor.top_center": "Top center",
-  "cake.hud.anchor.top_right": "Top right",
-  "cake.hud.anchor.middle_left": "Middle left",
-  "cake.hud.anchor.middle_center": "Center",
-  "cake.hud.anchor.middle_right": "Middle right",
-  "cake.hud.anchor.bottom_left": "Bottom left",
-  "cake.hud.anchor.bottom_center": "Bottom center",
-  "cake.hud.anchor.bottom_right": "Bottom right"
+  "cake.setting.discordrichpresence.show_server.description": "Shows the name and icon of the server you are on, including supported server integrations and public servers listed in Lunar Client's ServerMappings."
 }
