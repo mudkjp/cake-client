@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(EntityRenderer.class)
 public abstract class NameTagMixin {
     @Inject(method = "getNameTag", at = @At("RETURN"), cancellable = true)
-    private void cake$prependPlayerPrefix(Entity entity, CallbackInfoReturnable<Component> callback) {
+    private void cake$decorateNameTag(Entity entity, CallbackInfoReturnable<Component> callback) {
         if (!(entity instanceof Player player)) {
             return;
         }
@@ -24,10 +24,8 @@ public abstract class NameTagMixin {
             return;
         }
 
-        var prefix = PlayerPrefixes.aboveHead(player.getGameProfile());
-
-        if (prefix != null) {
-            callback.setReturnValue(Component.empty().append(prefix).append(original));
-        }
+        callback.setReturnValue(
+                PlayerPrefixes.decorate(original, player.getGameProfile(), false)
+        );
     }
 }

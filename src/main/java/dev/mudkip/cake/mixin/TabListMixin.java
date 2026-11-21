@@ -12,17 +12,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(PlayerTabOverlay.class)
 public abstract class TabListMixin {
     @Inject(method = "getNameForDisplay", at = @At("RETURN"), cancellable = true)
-    private void cake$prependPlayerPrefix(PlayerInfo info, CallbackInfoReturnable<Component> callback) {
+    private void cake$decorateTabList(PlayerInfo info, CallbackInfoReturnable<Component> callback) {
         var original = callback.getReturnValue();
 
         if (original == null) {
             return;
         }
 
-        var prefix = PlayerPrefixes.tabList(info.getProfile());
-
-        if (prefix != null) {
-            callback.setReturnValue(Component.empty().append(prefix).append(original));
-        }
+        callback.setReturnValue(
+                PlayerPrefixes.decorate(original, info.getProfile(), true)
+        );
     }
 }

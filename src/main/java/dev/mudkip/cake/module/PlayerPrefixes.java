@@ -10,27 +10,48 @@ public final class PlayerPrefixes {
     private PlayerPrefixes() {
     }
 
-    public static @Nullable Component aboveHead(GameProfile profile) {
-        return PlayerPrefixes.prefix(profile, false);
-    }
+    public static Component decorate(Component original, GameProfile profile, boolean tabList) {
+        var prefix = PlayerPrefixes.prefix(profile, tabList);
+        var suffix = PlayerPrefixes.badgeSuffix(profile);
 
-    public static @Nullable Component tabList(GameProfile profile) {
-        return PlayerPrefixes.prefix(profile, true);
+        if (prefix == null && suffix == null) {
+            return original;
+        }
+
+        var result = Component.empty();
+
+        if (prefix != null) {
+            result.append(prefix);
+        }
+
+        result.append(original);
+
+        if (suffix != null) {
+            result.append(suffix);
+        }
+
+        return result;
     }
 
     private static @Nullable Component prefix(GameProfile profile, boolean tabList) {
         var access = (MinecraftClientAccess) Minecraft.getInstance();
         var nickDetector = access.cake$getActiveModule(NickDetectorModule.class);
+        var prefix = nickDetector == null ? null : nickDetector.prefix(profile, tabList);
 
-        if (nickDetector != null) {
-            var prefix = nickDetector.prefix(profile, tabList);
-
-            if (prefix != null) {
-                return prefix;
-            }
+        if (prefix == null) {
+            var starLevels = access.cake$getActiveModule(StarLevelsModule.class);
+            prefix = starLevels == null ? null : starLevels.prefix(profile, tabList);
         }
 
-        var starLevels = access.cake$getActiveModule(StarLevelsModule.class);
-        return starLevels == null ? null : starLevels.prefix(profile, tabList);
+        return prefix;
+    }
+
+    private static @Nullable Component badgeSuffix(GameProfile profile) {
+        //? if modrinth {
+        /*return null;
+        *///?} else {
+        var badge = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getBadgeService();
+        return badge == null ? null : badge.suffix(profile);
+        //?}
     }
 }

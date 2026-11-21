@@ -1,5 +1,7 @@
 import me.modmuss50.mpp.ReleaseType
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
+import org.gradle.jvm.tasks.Jar
+import org.gradle.language.jvm.tasks.ProcessResources
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
@@ -13,6 +15,14 @@ val obfuscated = !(findProperty("fabric.loom.disableObfuscation")?.toString()?.t
 val javaVersion = (property("mod.java_version") as String).toInt()
 val minecraftDependency = property("mod.minecraft_dependency") as String
 val fabricLoaderVersion = property("deps.fabric_loader") as String
+val publishing = gradle.startParameter.taskNames.any {
+    it.endsWith("publishMods") || it.endsWith("publishAllVersions")
+}
+val modrinthBuild = findProperty("modrinth")?.toString()?.toBoolean() ?: publishing
+
+if (publishing && !modrinthBuild) {
+    throw GradleException("Modrinth publishing requires -Pmodrinth=true")
+}
 
 base {
     archivesName = "cake-client"
@@ -24,6 +34,30 @@ version = "${property("mod.version")}+${stonecutter.current.version}-$loaderName
 stonecutter {
     constants {
         match(loaderName, "fabric")
+        put("modrinth", modrinthBuild)
+    }
+}
+
+val generatedMain = layout.buildDirectory.dir("generated/stonecutter/main").get().asFile
+
+sourceSets.main {
+    java.setSrcDirs(listOf(generatedMain.resolve("java")))
+    resources.setSrcDirs(listOf(generatedMain.resolve("resources")))
+}
+
+tasks.named("compileJava") {
+    dependsOn("stonecutterGenerate")
+}
+
+tasks.named<ProcessResources>("processResources") {
+    dependsOn("stonecutterGenerate")
+}
+
+tasks.withType<Jar>().matching { it.name == "sourcesJar" }.configureEach {
+    dependsOn("stonecutterGenerate")
+
+    if (modrinthBuild) {
+        exclude("dev/mudkip/cake/badge/BadgeService.java")
     }
 }
 

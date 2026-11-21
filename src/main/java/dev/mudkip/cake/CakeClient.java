@@ -1,5 +1,8 @@
 package dev.mudkip.cake;
 
+//? if !modrinth {
+import dev.mudkip.cake.badge.BadgeService;
+//?}
 import dev.mudkip.cake.module.HudModule;
 import dev.mudkip.cake.module.ModuleConfig;
 import dev.mudkip.cake.module.ModuleContext;
@@ -25,6 +28,9 @@ public final class CakeClient implements ClientModInitializer {
     private final BedwarsPractice bedwarsPractice;
     private final ModuleManager modules;
     private final KeybindController keybinds;
+    //? if !modrinth {
+    private final BadgeService badge;
+    //?}
 
     public CakeClient() {
         this.client = Minecraft.getInstance();
@@ -39,6 +45,10 @@ public final class CakeClient implements ClientModInitializer {
         );
         this.keybinds = new KeybindController(this.client, this.modules);
         ((MinecraftClientAccess) this.client).cake$setModuleManager(this.modules);
+        //? if !modrinth {
+        this.badge = new BadgeService(this.client, this.serverSession);
+        ((MinecraftClientAccess) this.client).cake$setBadgeService(this.badge);
+        //?}
     }
 
     @Override
@@ -49,6 +59,9 @@ public final class CakeClient implements ClientModInitializer {
         this.modules.load();
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> this.modules.shutdown());
+        //? if !modrinth {
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> this.badge.shutdown());
+        //?}
     }
 
     private void registerHud() {
@@ -72,6 +85,9 @@ public final class CakeClient implements ClientModInitializer {
 
     private void tick(Minecraft client) {
         this.serverSession.update(client);
+        //? if !modrinth {
+        this.badge.tick();
+        //?}
         this.modules.refreshAvailability();
         this.bedwarsPractice.tick();
         this.keybinds.tick();
