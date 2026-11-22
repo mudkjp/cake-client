@@ -6,7 +6,7 @@ import com.mojang.authlib.GameProfile;
 import dev.mudkip.cake.server.ServerSession;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.objects.AtlasSprite;
+import net.minecraft.network.chat.FontDescription;
 import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -29,21 +29,14 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class BadgeService {
     private static final Logger LOGGER = LoggerFactory.getLogger(BadgeService.class);
     private static final String BACKEND = "wss://api.cake.mudkip.dev/ws/presence";
-    private static final Component CAKE_BADGE = Component.empty()
-            .append(Component.literal(" "))
-            .append(Component.object(
-                    new AtlasSprite(
-                            Identifier.fromNamespaceAndPath("minecraft", "items"),
-                            Identifier.fromNamespaceAndPath("minecraft", "item/cake")
-                    ),
-                    Component.literal("[cake]")
-            ).withStyle(style -> style.withoutShadow()));
+    private static final Identifier BADGE_FONT = Identifier.fromNamespaceAndPath("cake", "badge");
 
     private final Minecraft client;
     private final ServerSession serverSession;
     private final ExecutorService executor;
     private final HttpClient httpClient;
     private final AtomicReference<Set<String>> users;
+    private final Component[] badges;
     private volatile @Nullable WebSocket socket;
     private volatile @Nullable String server;
     private volatile boolean connecting;
@@ -65,6 +58,7 @@ public final class BadgeService {
                 .executor(this.executor)
                 .build();
         this.users = new AtomicReference<>(Set.of());
+        this.badges = new Component[9];
     }
 
     public @Nullable Component suffix(GameProfile profile) {
@@ -76,7 +70,24 @@ public final class BadgeService {
             return null;
         }
 
-        return BadgeService.CAKE_BADGE;
+        return this.badge();
+    }
+
+    private Component badge() {
+        var scale = Math.max(1, Math.min(8, this.client.getWindow().getGuiScale()));
+        var cached = this.badges[scale];
+
+        if (cached == null) {
+            var glyph = Character.toString((char) (0xE000 + scale - 1));
+            cached = Component.empty()
+                    .append(Component.literal(" "))
+                    .append(Component.literal(glyph).withStyle(style -> style
+                            .withFont(new FontDescription.Resource(BadgeService.BADGE_FONT))
+                            .withoutShadow()));
+            this.badges[scale] = cached;
+        }
+
+        return cached;
     }
 
     public void tick() {
