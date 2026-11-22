@@ -21,6 +21,10 @@ public final class StarLevelsModule extends ClientModule {
     private static final Pattern CHAT_STAR_PATTERN = Pattern.compile("^\\[(\\d+)[" + STAR + PRESTIGE_STAR + "]\\] (?:\\[[^\\]]+\\] )*([A-Za-z0-9_]{1,16}): ");
     private static final Pattern API_KEY_PATTERN = Pattern.compile("Your API key is (\\S+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern ROTATED_PATTERN = Pattern.compile("Generated new API Key", Pattern.CASE_INSENSITIVE);
+    private static final Pattern MISSING_KEY_PATTERN = Pattern.compile(
+            "You do not have an API key",
+            Pattern.CASE_INSENSITIVE
+    );
     private static final ChatFormatting[] PRESTIGE_COLORS = {
             ChatFormatting.GRAY,
             ChatFormatting.WHITE,
@@ -71,6 +75,7 @@ public final class StarLevelsModule extends ClientModule {
     private boolean requested;
     private boolean expectingKey;
     private boolean refetch;
+    private boolean createKey;
 
     public StarLevelsModule(ModuleContext context) {
         super(
@@ -123,6 +128,17 @@ public final class StarLevelsModule extends ClientModule {
         }
 
         var text = StarLevelsModule.FORMATTING_PATTERN.matcher(message.getString()).replaceAll("");
+        var missingMatcher = StarLevelsModule.MISSING_KEY_PATTERN.matcher(text);
+
+        if (missingMatcher.find()) {
+            if (!this.expectingKey) {
+                return true;
+            }
+
+            this.createKey = true;
+            return false;
+        }
+
         var keyMatcher = StarLevelsModule.API_KEY_PATTERN.matcher(text);
 
         if (keyMatcher.find()) {
@@ -138,6 +154,10 @@ public final class StarLevelsModule extends ClientModule {
 
         if (StarLevelsModule.ROTATED_PATTERN.matcher(text).find()) {
             this.refetch = true;
+
+            if (this.expectingKey) {
+                return false;
+            }
         }
 
         this.handleChatLevel(text);
@@ -150,6 +170,7 @@ public final class StarLevelsModule extends ClientModule {
         this.requested = false;
         this.expectingKey = false;
         this.refetch = false;
+        this.createKey = false;
     }
 
     @Override
@@ -158,6 +179,11 @@ public final class StarLevelsModule extends ClientModule {
 
         if (connection == null || this.client.player == null) {
             return;
+        }
+
+        if (this.createKey) {
+            this.createKey = false;
+            this.sendApiNew(connection);
         }
 
         if (this.refetch) {
@@ -216,6 +242,16 @@ public final class StarLevelsModule extends ClientModule {
 
         try {
             connection.sendCommand("api get");
+        } catch (Exception ignored) {
+            this.expectingKey = false;
+        }
+    }
+
+    private void sendApiNew(ClientPacketListener connection) {
+        this.expectingKey = true;
+
+        try {
+            connection.sendCommand("api new");
         } catch (Exception ignored) {
             this.expectingKey = false;
         }
