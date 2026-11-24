@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class CameraMixin {
     @Inject(method = "calculateFov", at = @At("RETURN"), cancellable = true)
     private void cake$applyZoom(float partialTicks, CallbackInfoReturnable<Float> callbackInfo) {
-        var module = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getActiveModule(ZoomModule.class);
+        var module = ((MinecraftClientAccess) Minecraft.getInstance()).cake$getModule(ZoomModule.class);
 
         if (module != null) {
             callbackInfo.setReturnValue(module.applyZoom(callbackInfo.getReturnValueF()));
