@@ -91,7 +91,14 @@ public final class KeybindController {
         KeybindController.drainKey(this.openMenuKey);
 
         for (var module : this.modules.getModules()) {
-            if (module.getKeyMapping().consumeClick()
+            var keyMapping = module.getKeyMapping();
+
+            if (keyMapping.isUnbound()) {
+                KeybindController.drainKey(keyMapping);
+                continue;
+            }
+
+            if (keyMapping.consumeClick()
                     && module.isAvailable()
                     && this.canToggleFromScreen()) {
                 module.setEnabled(!module.isEnabled());
