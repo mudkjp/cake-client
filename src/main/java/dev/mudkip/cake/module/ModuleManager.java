@@ -77,9 +77,11 @@ public final class ModuleManager {
         this.register(new CleanScoreboardModule(context));
         this.register(new StarLevelsModule(context));
         this.register(new NickDetectorModule(context));
+        this.register(new HideRepetitiveMessagesModule(context));
         this.register(new FpsModule(context));
         this.register(new CpsModule(context));
         this.register(new PingModule(context));
+        this.register(new BlockSumoTimerModule(context));
         this.register(new ReplayBufferModule(context));
         this.register(new ZoomModule(context));
         this.register(new FingerprintModule(context));

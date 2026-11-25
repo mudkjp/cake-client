@@ -80,8 +80,16 @@ public final class CakeClient implements ClientModInitializer {
         var y = CakeClient.HUD_MARGIN;
 
         for (var module : this.modules.getModules()) {
-            if (module instanceof HudModule hudModule && hudModule.isEnabled()) {
-                graphics.text(font, hudModule.getText(), CakeClient.HUD_MARGIN, y, 0xFFFFFFFF, true);
+            if (!(module instanceof HudModule hudModule) || !hudModule.isEnabled()) {
+                continue;
+            }
+
+            for (var line : hudModule.getText().split("\n")) {
+                if (line.isEmpty()) {
+                    continue;
+                }
+
+                graphics.text(font, line, CakeClient.HUD_MARGIN, y, 0xFFFFFFFF, true);
                 y += font.lineHeight;
             }
         }

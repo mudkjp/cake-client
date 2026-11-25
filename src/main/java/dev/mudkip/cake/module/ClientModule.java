@@ -7,6 +7,7 @@ import dev.mudkip.cake.module.setting.ColorSetting;
 import dev.mudkip.cake.module.setting.DoubleSetting;
 import dev.mudkip.cake.module.setting.EnumSetting;
 import dev.mudkip.cake.module.setting.IntSetting;
+import dev.mudkip.cake.module.setting.MessageSetting;
 import dev.mudkip.cake.module.setting.ModuleSetting;
 import dev.mudkip.cake.module.setting.StringSetting;
 import dev.mudkip.cake.server.ServerIntegration;
@@ -163,6 +164,10 @@ public abstract class ClientModule {
         var name = this.settingName(key);
         var description = this.settingDescription(key);
         return this.setting(new BooleanSetting(id, name, description, defaultValue));
+    }
+
+    protected MessageSetting messageSetting(String id, Component name, boolean defaultValue) {
+        return this.setting(new MessageSetting(id, name, defaultValue));
     }
 
     protected IntSetting intSetting(String id, int min, int max, int defaultValue, String suffix) {
